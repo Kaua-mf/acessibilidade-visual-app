@@ -1,8 +1,25 @@
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-
+import { ScrollView, Text, View, Pressable, Platform, StyleSheet } from "react-native";
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { ScreenContainer } from "@/components/screen-container";
 
 export default function HomeScreen() {
+  const router = useRouter();
+
+  const handleColorDetectionPress = async () => {
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    router.push('/color-detection');
+  };
+
+  const handleLightDetectionPress = async () => {
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    router.push('/light-detection');
+  };
+
   return (
     <ScreenContainer className="p-6">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
@@ -17,27 +34,45 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          {/* Feature Cards */}
+          {/* Feature Cards - Now Clickable */}
           <View className="w-full gap-4">
-            {/* Color Detection Card */}
-            <View className="w-full bg-primary rounded-2xl p-6 border-2 border-foreground">
-              <Text className="text-2xl font-bold text-black mb-2">
+            {/* Color Detection Card - Clickable */}
+            <Pressable
+              onPress={handleColorDetectionPress}
+              style={({ pressed }) => [
+                styles.featureCard,
+                pressed && styles.featureCardPressed,
+              ]}
+            >
+              <Text style={styles.cardTitle}>
                 🎨 Identificação de Cores
               </Text>
-              <Text className="text-sm text-black leading-relaxed">
+              <Text style={styles.cardDescription}>
                 Detecte e identifique cores em tempo real usando a câmera do seu dispositivo. O app anunciará o nome da cor detectada.
               </Text>
-            </View>
+              <Text style={styles.cardHint}>
+                ➜ Toque para abrir
+              </Text>
+            </Pressable>
 
-            {/* Light Detection Card */}
-            <View className="w-full bg-primary rounded-2xl p-6 border-2 border-foreground">
-              <Text className="text-2xl font-bold text-black mb-2">
+            {/* Light Detection Card - Clickable */}
+            <Pressable
+              onPress={handleLightDetectionPress}
+              style={({ pressed }) => [
+                styles.featureCard,
+                pressed && styles.featureCardPressed,
+              ]}
+            >
+              <Text style={styles.cardTitle}>
                 💡 Detecção de Luz
               </Text>
-              <Text className="text-sm text-black leading-relaxed">
+              <Text style={styles.cardDescription}>
                 Ouça um apito que varia de frequência conforme a intensidade da luz. Perfeito para navegação em ambientes com diferentes iluminações.
               </Text>
-            </View>
+              <Text style={styles.cardHint}>
+                ➜ Toque para abrir
+              </Text>
+            </Pressable>
           </View>
 
           {/* Instructions */}
@@ -46,13 +81,16 @@ export default function HomeScreen() {
               Como usar:
             </Text>
             <Text className="text-sm text-foreground leading-relaxed mb-2">
-              1. Toque em "Cores" para identificar cores
+              1. Toque na caixa amarela "Cores" para identificar cores
             </Text>
             <Text className="text-sm text-foreground leading-relaxed mb-2">
-              2. Toque em "Luz" para detectar intensidade de luz
+              2. Toque na caixa amarela "Luz" para detectar intensidade de luz
+            </Text>
+            <Text className="text-sm text-foreground leading-relaxed mb-2">
+              3. Use a barra de abas para acessar Calibração e outras funções
             </Text>
             <Text className="text-sm text-foreground leading-relaxed">
-              3. Use os botões grandes para navegar entre as telas
+              4. Toque nos botões grandes para navegar entre as telas
             </Text>
           </View>
         </View>
@@ -60,3 +98,38 @@ export default function HomeScreen() {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  featureCard: {
+    width: '100%',
+    backgroundColor: '#FFFF00',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: '#000000',
+    justifyContent: 'center',
+  },
+  featureCardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#000000',
+    lineHeight: 20,
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  cardHint: {
+    fontSize: 12,
+    color: '#333333',
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+});

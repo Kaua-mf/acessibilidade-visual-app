@@ -92,3 +92,12 @@
 - [x] Implementar persistência com AsyncStorage
 - [x] Adicionar validação de configurações
 - [ ] Integrar configurações na detecção de cores (próximo passo)
+
+
+## Melhorias na Tela Inicial
+
+- [x] Converter caixas de informação em atalhos clicáveis
+- [x] Adicionar navegação para Identificação de Cores
+- [x] Adicionar navegação para Detecção de Luz
+- [x] Adicionar feedback visual ao tocar nos atalhos (escala e opacidade)
+- [x] Adicionar feedback haptic ao tocar nos atalhos
