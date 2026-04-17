@@ -32,10 +32,12 @@ const env = {
   appSlug: "acessibilidade-visual-app",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310419663030875481/cxNmPNzWGKhjTJmjQU4mb2/icon-4r9SUUVyij4VR58Sjhe5ds.webp",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
+  // App description for accessibility
+  description: "Aplicativo móvel para acessibilidade visual com detecção de cores e luz",
 };
 
 const config: ExpoConfig = {

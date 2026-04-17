@@ -35,6 +35,20 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="color-detection"
+        options={{
+          title: "Cores",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paintbrush.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="light-detection"
+        options={{
+          title: "Luz",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="lightbulb.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
