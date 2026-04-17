@@ -164,3 +164,11 @@
 - [x] Adicionar vibração Heavy nos botões de preset e reset
 - [x] Adicionar vibração Heavy nos botões de permissão de câmera
 - [x] Todos os 98 testes passando
+
+
+## Reposicionamento da Tab Bar
+
+- [x] Mover tab bar mais para cima
+- [x] Posicionar tab bar no meio da tela (bottom: 50%)
+- [x] Adicionar borda inferior para melhor definição
+- [x] Todos os 98 testes passando

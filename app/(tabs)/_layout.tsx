@@ -19,12 +19,18 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
+          position: 'absolute',
+          bottom: '50%',
+          left: 0,
+          right: 0,
           paddingTop: 4,
           paddingBottom: bottomPadding,
           height: tabBarHeight,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
           borderTopWidth: 0.5,
+          borderBottomColor: colors.border,
+          borderBottomWidth: 0.5,
         },
       }}
     >
