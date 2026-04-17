@@ -158,7 +158,12 @@ export default function ColorDetectionScreen() {
           Este app precisa de acesso à câmera para identificar cores.
         </Text>
         <Pressable
-          onPress={requestPermission}
+          onPress={async () => {
+            if (Platform.OS !== 'web') {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            }
+            requestPermission();
+          }}
           style={({ pressed }) => [
             pressed && { opacity: 0.8 },
           ]}
@@ -174,7 +179,7 @@ export default function ColorDetectionScreen() {
 
   const handleNavigateToLightMode = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     // Navigate to light-detection tab
     router.push('/light-detection');
@@ -182,7 +187,7 @@ export default function ColorDetectionScreen() {
 
   const handleGoBack = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     router.back();
   };

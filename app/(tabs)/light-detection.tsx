@@ -93,7 +93,12 @@ export default function LightDetectionScreen() {
           Este app precisa de acesso à câmera para detectar luz.
         </Text>
         <Pressable
-          onPress={requestPermission}
+          onPress={async () => {
+            if (Platform.OS !== 'web') {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            }
+            requestPermission();
+          }}
           style={({ pressed }) => [
             pressed && { opacity: 0.8 },
           ]}
@@ -112,7 +117,7 @@ export default function LightDetectionScreen() {
     stopWhistle();
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     // Navigate back to home
     router.back();
@@ -120,7 +125,7 @@ export default function LightDetectionScreen() {
 
   const toggleWhistle = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     
     if (isWhistleActive) {

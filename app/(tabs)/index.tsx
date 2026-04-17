@@ -8,14 +8,14 @@ export default function HomeScreen() {
 
   const handleColorDetectionPress = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     router.push('/color-detection');
   };
 
   const handleLightDetectionPress = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     router.push('/light-detection');
   };

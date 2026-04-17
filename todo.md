@@ -152,3 +152,15 @@
 - [x] Reduzir altura da tab bar de 56 para 48px
 - [x] Reduzir padding top de 8 para 4px
 - [x] Reduzir bottom padding para melhor espaçamento
+
+
+## Feedback de Vibração Aprimorado
+
+- [x] Adicionar vibração Heavy nos botões da tela inicial
+- [x] Adicionar vibração Medium nos botões de voltar
+- [x] Adicionar vibração Medium nos botões de modo luz/cores
+- [x] Adicionar vibração Medium nos sliders de calibração
+- [x] Adicionar vibração Heavy nos botões de toggle de apito
+- [x] Adicionar vibração Heavy nos botões de preset e reset
+- [x] Adicionar vibração Heavy nos botões de permissão de câmera
+- [x] Todos os 98 testes passando

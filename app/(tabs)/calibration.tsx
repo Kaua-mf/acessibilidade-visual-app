@@ -56,7 +56,7 @@ export default function CalibrationScreen() {
     await saveCalibrationSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -66,7 +66,7 @@ export default function CalibrationScreen() {
     await saveCalibrationSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -76,7 +76,7 @@ export default function CalibrationScreen() {
     await saveCalibrationSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -86,7 +86,7 @@ export default function CalibrationScreen() {
     await saveCalibrationSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -96,7 +96,7 @@ export default function CalibrationScreen() {
     await saveSpeechSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -106,13 +106,13 @@ export default function CalibrationScreen() {
     await saveSpeechSettings(updated);
     
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
   const handlePresetPress = async (presetName: keyof typeof CALIBRATION_PRESETS) => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     
     const preset = await applyPreset(presetName);
@@ -121,7 +121,7 @@ export default function CalibrationScreen() {
 
   const handleReset = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     
     await resetCalibrationSettings();
@@ -130,7 +130,7 @@ export default function CalibrationScreen() {
 
   const handleBack = async () => {
     if (Platform.OS !== 'web') {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     router.back();
   };
