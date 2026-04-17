@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
 import { detectColorFromImageData } from '@/lib/color-detection';
+import { loadSpeechSettings, type SpeechSettings } from '@/lib/speech-settings';
 
 interface DetectedColorData {
   name: string;
@@ -25,28 +26,49 @@ export default function ColorDetectionScreen() {
   });
   const [lastSpokenColor, setLastSpokenColor] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [speechSettings, setSpeechSettings] = useState<SpeechSettings>({
+    rate: 0.9,
+    pitch: 1.0,
+    volume: 1.0,
+    enabled: true,
+  });
   const cameraRef = useRef<CameraView>(null);
   const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
   const colors = useColors();
 
-  // Announce color change with speech
+  // Load speech settings on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await loadSpeechSettings();
+      setSpeechSettings(settings);
+    };
+    loadSettings();
+  }, []);
+
+  // Announce color change with speech using loaded settings
   useEffect(() => {
     if (detectedColor.name !== lastSpokenColor && detectedColor.name !== 'Inicializando...') {
       setLastSpokenColor(detectedColor.name);
 
-      // Check if speech is already in progress
-      Speech.isSpeakingAsync().then((isSpeaking: boolean) => {
-        if (!isSpeaking) {
-          Speech.speak(detectedColor.name, {
-            language: 'pt-BR',
-            pitch: 1.0,
-            rate: 0.9,
-          });
-        }
-      });
+      // Only speak if speech is enabled
+      if (speechSettings.enabled) {
+        // Check if speech is already in progress
+        Speech.isSpeakingAsync().then((isSpeaking: boolean) => {
+          if (!isSpeaking) {
+            Speech.speak(detectedColor.name, {
+              language: 'pt-BR',
+              pitch: speechSettings.pitch,
+              rate: speechSettings.rate,
+              volume: speechSettings.volume,
+            });
+          }
+        });
+      }
     }
-  }, [detectedColor, lastSpokenColor]);
+  }, [detectedColor, lastSpokenColor, speechSettings]);
+
+
 
   // Start color detection when camera is ready
   useEffect(() => {

@@ -133,3 +133,13 @@
 - [x] Garantir que botões estejam sempre visíveis e acessíveis
 - [x] Posicionar botão de voltar no canto superior esquerdo (Cores)
 - [x] Posicionar botão de voltar junto com outros controles (Luz)
+
+
+## Integração de Configurações de Fala
+
+- [x] Carregar configurações de fala na tela de Cores
+- [x] Usar rate e pitch carregados ao reproduzir nomes de cores
+- [x] Usar volume carregado ao reproduzir nomes de cores
+- [x] Respeitar configuração de enabled para ativar/desativar fala
+- [x] Atualizar áudio quando configurações mudam
+- [x] Todos os 98 testes passando
