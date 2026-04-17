@@ -1,4 +1,4 @@
-import { ScrollView, Text, View, Pressable, Platform, StyleSheet } from "react-native";
+import { Text, View, Pressable, Platform, StyleSheet } from "react-native";
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from "@/components/screen-container";
@@ -21,91 +21,94 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScreenContainer className="p-6" edges={["top", "left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}>
-        <View className="flex-1 gap-6 pt-4">
-          {/* Hero Section */}
-          <View className="items-center gap-3 mb-4">
-            <Text className="text-3xl font-bold text-foreground text-center leading-tight">
-              Acessibilidade Visual
-            </Text>
-            <Text className="text-sm text-foreground text-center">
-              Detecção de cores e luz
-            </Text>
-          </View>
-
-          {/* Feature Cards - Now Clickable */}
-          <View className="w-full gap-4">
-            {/* Color Detection Card - Clickable */}
-            <Pressable
-              onPress={handleColorDetectionPress}
-              style={({ pressed }) => [
-                styles.featureCard,
-                pressed && styles.featureCardPressed,
-              ]}
-            >
-              <Text style={styles.cardTitle}>
-                🎨 Identificação de Cores
-              </Text>
-              <Text style={styles.cardDescription}>
-                Detecte e identifique cores em tempo real usando a câmera do seu dispositivo. O app anunciará o nome da cor detectada.
-              </Text>
-              <Text style={styles.cardHint}>
-                ➜ Toque para abrir
-              </Text>
-            </Pressable>
-
-            {/* Light Detection Card - Clickable */}
-            <Pressable
-              onPress={handleLightDetectionPress}
-              style={({ pressed }) => [
-                styles.featureCard,
-                pressed && styles.featureCardPressed,
-              ]}
-            >
-              <Text style={styles.cardTitle}>
-                💡 Detecção de Luz
-              </Text>
-              <Text style={styles.cardDescription}>
-                Ouça um apito que varia de frequência conforme a intensidade da luz. Perfeito para navegação em ambientes com diferentes iluminações.
-              </Text>
-              <Text style={styles.cardHint}>
-                ➜ Toque para abrir
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Instructions */}
-          <View className="w-full bg-surface rounded-2xl p-6 border-2 border-border">
-            <Text className="text-lg font-bold text-foreground mb-3">
-              Como usar:
-            </Text>
-            <Text className="text-sm text-foreground leading-relaxed mb-2">
-              1. Toque na caixa amarela "Cores" para identificar cores
-            </Text>
-            <Text className="text-sm text-foreground leading-relaxed mb-2">
-              2. Toque na caixa amarela "Luz" para detectar intensidade de luz
-            </Text>
-            <Text className="text-sm text-foreground leading-relaxed mb-2">
-              3. Use a barra de abas para acessar Calibração e outras funções
-            </Text>
-            <Text className="text-sm text-foreground leading-relaxed">
-              4. Toque nos botões grandes para navegar entre as telas
-            </Text>
-          </View>
+    <ScreenContainer 
+      className="flex-1 bg-black" 
+      edges={["top", "left", "right", "bottom"]}
+      containerClassName="bg-black"
+    >
+      <View style={styles.container}>
+        {/* Title - Logo abaixo da câmera */}
+        <View style={styles.titleSection}>
+          <Text style={styles.title}>Acessibilidade Visual</Text>
         </View>
-      </ScrollView>
+
+        {/* Feature Cards - Centered */}
+        <View style={styles.cardsContainer}>
+          {/* Color Detection Card */}
+          <Pressable
+            onPress={handleColorDetectionPress}
+            style={({ pressed }) => [
+              styles.featureCard,
+              pressed && styles.featureCardPressed,
+            ]}
+          >
+            <Text style={styles.cardTitle}>
+              🎨 Identificação de Cores
+            </Text>
+            <Text style={styles.cardDescription}>
+              Detecte e identifique cores em tempo real
+            </Text>
+            <Text style={styles.cardHint}>
+              ➜ Toque para abrir
+            </Text>
+          </Pressable>
+
+          {/* Light Detection Card */}
+          <Pressable
+            onPress={handleLightDetectionPress}
+            style={({ pressed }) => [
+              styles.featureCard,
+              pressed && styles.featureCardPressed,
+            ]}
+          >
+            <Text style={styles.cardTitle}>
+              💡 Detecção de Luz
+            </Text>
+            <Text style={styles.cardDescription}>
+              Ouça apito que varia com a intensidade de luz
+            </Text>
+            <Text style={styles.cardHint}>
+              ➜ Toque para abrir
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  titleSection: {
+    position: 'absolute',
+    top: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  cardsContainer: {
+    width: '100%',
+    gap: 16,
+    alignItems: 'center',
+  },
   featureCard: {
     width: '100%',
+    maxWidth: 320,
     backgroundColor: '#FFFF00',
     borderRadius: 16,
-    padding: 24,
-    borderWidth: 2,
+    padding: 20,
+    borderWidth: 3,
     borderColor: '#000000',
     justifyContent: 'center',
   },
@@ -114,7 +117,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#000000',
     marginBottom: 8,

@@ -113,3 +113,14 @@
 - [x] Ajustar espaçamento do título "Acessibilidade Visual"
 - [x] Adicionar padding bottom para evitar corte pela tab bar
 - [ ] Testar layout em diferentes tamanhos de tela
+
+
+## Ajustes Finais de Layout
+
+- [x] Remover barra de rolagem (ScrollView)
+- [x] Centralizar conteúdo verticalmente
+- [x] Mudar fundo para preto (theme.config.js)
+- [x] Posicionar título logo abaixo da câmera
+- [x] Remover padding desnecessário
+- [x] Ajustar cores para branco em fundo preto
+- [x] Simplificar layout sem ScrollView
