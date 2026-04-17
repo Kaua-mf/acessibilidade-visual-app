@@ -21,16 +21,16 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScreenContainer className="p-6">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 gap-8">
+    <ScreenContainer className="p-6" edges={["top", "left", "right", "bottom"]}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}>
+        <View className="flex-1 gap-6 pt-4">
           {/* Hero Section */}
-          <View className="items-center gap-2">
-            <Text className="text-4xl font-bold text-foreground">
+          <View className="items-center gap-3 mb-4">
+            <Text className="text-3xl font-bold text-foreground text-center leading-tight">
               Acessibilidade Visual
             </Text>
-            <Text className="text-base text-foreground text-center">
-              Aplicativo para detecção de cores e luz
+            <Text className="text-sm text-foreground text-center">
+              Detecção de cores e luz
             </Text>
           </View>
 

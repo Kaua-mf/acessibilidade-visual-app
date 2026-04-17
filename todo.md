@@ -101,3 +101,15 @@
 - [x] Adicionar navegação para Detecção de Luz
 - [x] Adicionar feedback visual ao tocar nos atalhos (escala e opacidade)
 - [x] Adicionar feedback haptic ao tocar nos atalhos
+
+
+## Ajustes de UI e Configurações de Fala
+
+- [x] Adicionar controle de velocidade da fala na calibração
+- [x] Adicionar controle de pitch da voz na calibração
+- [x] Criar utilitário de configurações de fala com AsyncStorage
+- [x] Criar 27 testes unitários para fala (todos passando)
+- [x] Ajustar padding do app para evitar corte do app bar
+- [x] Ajustar espaçamento do título "Acessibilidade Visual"
+- [x] Adicionar padding bottom para evitar corte pela tab bar
+- [ ] Testar layout em diferentes tamanhos de tela

@@ -14,9 +14,18 @@ import {
   applyPreset,
   getCalibrationDescription,
 } from '@/lib/calibration-settings';
+import {
+  SpeechSettings,
+  DEFAULT_SPEECH_SETTINGS,
+  loadSpeechSettings,
+  saveSpeechSettings,
+  getSpeechRateDescription,
+  getPitchDescription,
+} from '@/lib/speech-settings';
 
 export default function CalibrationScreen() {
   const [settings, setSettings] = useState<CalibrationSettings>(DEFAULT_SETTINGS);
+  const [speechSettings, setSpeechSettings] = useState<SpeechSettings>(DEFAULT_SPEECH_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const colors = useColors();
@@ -28,8 +37,12 @@ export default function CalibrationScreen() {
 
   const loadSettings = async () => {
     try {
-      const loaded = await loadCalibrationSettings();
-      setSettings(loaded);
+      const [calibration, speech] = await Promise.all([
+        loadCalibrationSettings(),
+        loadSpeechSettings(),
+      ]);
+      setSettings(calibration);
+      setSpeechSettings(speech);
     } catch (error) {
       console.error('Error loading settings:', error);
     } finally {
@@ -77,6 +90,26 @@ export default function CalibrationScreen() {
     }
   };
 
+  const handleSpeechRateChange = async (value: number) => {
+    const updated = { ...speechSettings, rate: value };
+    setSpeechSettings(updated);
+    await saveSpeechSettings(updated);
+    
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handlePitchChange = async (value: number) => {
+    const updated = { ...speechSettings, pitch: value };
+    setSpeechSettings(updated);
+    await saveSpeechSettings(updated);
+    
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   const handlePresetPress = async (presetName: keyof typeof CALIBRATION_PRESETS) => {
     if (Platform.OS !== 'web') {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -111,8 +144,8 @@ export default function CalibrationScreen() {
   }
 
   return (
-    <ScreenContainer className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingVertical: 20 }}>
+    <ScreenContainer className="flex-1 bg-background" edges={["top", "left", "right", "bottom"]}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingVertical: 16, paddingBottom: 100 }}>
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
@@ -309,6 +342,87 @@ export default function CalibrationScreen() {
             </View>
           </View>
 
+          {/* Speech Settings Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔊 Configurações de Fala</Text>
+
+            {/* Speech Rate Slider */}
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Velocidade da Fala</Text>
+              <Text style={styles.sliderValue}>{getSpeechRateDescription(speechSettings.rate)}</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderMin}>Lento</Text>
+              <View style={styles.slider}>
+                <View
+                  style={[
+                    styles.sliderFill,
+                    { width: `${((speechSettings.rate - 0.5) / 1.5) * 100}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.sliderMax}>Rápido</Text>
+            </View>
+            <View style={styles.sliderButtonsContainer}>
+              {[0.6, 0.8, 0.9, 1.1, 1.3].map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => handleSpeechRateChange(value)}
+                  style={({ pressed }) => [
+                    styles.sliderButton,
+                    Math.abs(speechSettings.rate - value) < 0.05 && styles.sliderButtonActive,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Text style={[
+                    styles.sliderButtonText,
+                    Math.abs(speechSettings.rate - value) < 0.05 && styles.sliderButtonTextActive,
+                  ]}>
+                    {value.toFixed(1)}x
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Pitch Slider */}
+            <View style={[styles.sliderHeader, { marginTop: 12 }]}>
+              <Text style={styles.sliderLabel}>Tom da Voz</Text>
+              <Text style={styles.sliderValue}>{getPitchDescription(speechSettings.pitch)}</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderMin}>Grave</Text>
+              <View style={styles.slider}>
+                <View
+                  style={[
+                    styles.sliderFill,
+                    { width: `${((speechSettings.pitch - 0.5) / 1.5) * 100}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.sliderMax}>Agudo</Text>
+            </View>
+            <View style={styles.sliderButtonsContainer}>
+              {[0.7, 0.85, 1.0, 1.15, 1.3].map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => handlePitchChange(value)}
+                  style={({ pressed }) => [
+                    styles.sliderButton,
+                    Math.abs(speechSettings.pitch - value) < 0.05 && styles.sliderButtonActive,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Text style={[
+                    styles.sliderButtonText,
+                    Math.abs(speechSettings.pitch - value) < 0.05 && styles.sliderButtonTextActive,
+                  ]}>
+                    {value.toFixed(2)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
           {/* Info Box */}
           <View style={styles.infoBox}>
             <Text style={styles.infoTitle}>💡 Dicas de Calibração</Text>
@@ -316,7 +430,7 @@ export default function CalibrationScreen() {
               • Aumentar sensibilidade em ambientes com iluminação variável{'\n'}
               • Diminuir sensibilidade em ambientes com cores vibrantes{'\n'}
               • Usar presets como ponto de partida{'\n'}
-              • Testar em diferentes condições de luz
+              • Ajustar velocidade da fala conforme sua preferência
             </Text>
           </View>
 
