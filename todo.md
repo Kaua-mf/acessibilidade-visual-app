@@ -174,3 +174,13 @@
 - [x] Mover tab bar para perto do final da página
 - [x] Garantir que todos os ícones fiquem visíveis
 - [x] Todos os 98 testes passando
+
+
+## Quadrado de Visualização Aprimorado
+
+- [x] Mover quadrado para o meio da tela (ambas as telas)
+- [x] Deixar quadrado amarelo (#FFFF00) com borda preta
+- [x] Aumentar tamanho do quadrado para 180x180px
+- [x] Remover border-radius (quadrado sem cantos arredondados)
+- [x] Posicionar display de informações abaixo do quadrado
+- [x] Todos os 98 testes passando
