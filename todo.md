@@ -124,3 +124,12 @@
 - [x] Remover padding desnecessário
 - [x] Ajustar cores para branco em fundo preto
 - [x] Simplificar layout sem ScrollView
+
+
+## Botões de Navegação
+
+- [x] Adicionar botão "Voltar" visível na tela de Identificação de Cores
+- [x] Adicionar botão "Voltar" visível na tela de Detecção de Luz
+- [x] Garantir que botões estejam sempre visíveis e acessíveis
+- [x] Posicionar botão de voltar no canto superior esquerdo (Cores)
+- [x] Posicionar botão de voltar junto com outros controles (Luz)

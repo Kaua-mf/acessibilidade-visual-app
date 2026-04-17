@@ -158,6 +158,13 @@ export default function ColorDetectionScreen() {
     router.push('/light-detection');
   };
 
+  const handleGoBack = async () => {
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.back();
+  };
+
   // Get color preview circle
   const colorPreviewStyle = {
     backgroundColor: detectedColor.hex,
@@ -172,6 +179,17 @@ export default function ColorDetectionScreen() {
       >
         {/* Overlay with reading frame and color display */}
         <View style={styles.overlay}>
+          {/* Back button - Top left */}
+          <Pressable
+            onPress={handleGoBack}
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+            ]}
+          >
+            <Text style={styles.backButtonText}>← Voltar</Text>
+          </Pressable>
+
           {/* Reading frame (center) */}
           <View style={styles.readingFrame}>
             {/* Color preview circle inside frame */}
@@ -285,6 +303,24 @@ const styles = StyleSheet.create({
   },
   modeButtonText: {
     fontSize: 32,
+    fontWeight: 'bold',
+    color: '#000000',
+    textAlign: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    backgroundColor: '#FFFF00',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: '#000000',
+    zIndex: 10,
+  },
+  backButtonText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'center',

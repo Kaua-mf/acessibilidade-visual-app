@@ -114,8 +114,8 @@ export default function LightDetectionScreen() {
     if (Platform.OS !== 'web') {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    // Navigate back to color-detection tab
-    router.push('/color-detection');
+    // Navigate back to home
+    router.back();
   };
 
   const toggleWhistle = async () => {
@@ -193,7 +193,7 @@ export default function LightDetectionScreen() {
                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
               ]}
             >
-              <Text style={styles.backButtonText}>←</Text>
+              <Text style={styles.backButtonText}>← Voltar</Text>
             </Pressable>
           </View>
         </View>
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
   },
   backButtonText: {
-    fontSize: 32,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'center',
