@@ -67,3 +67,16 @@
 - [x] Exibição de frequência em Hz
 - [ ] Testar síntese em diferentes dispositivos
 - [ ] Otimizar performance da síntese de áudio
+
+
+## Processamento de Imagem Real
+
+- [x] Criar utilitário de análise de cores de imagem
+- [x] Integrar processamento de frames da câmera
+- [x] Detectar cores no centro da moldura
+- [x] Converter RGB para nome de cor
+- [x] Exibir confiança de detecção
+- [x] Exibir valores RGB e hex
+- [x] Criar 27 testes unitários (todos passando)
+- [ ] Otimizar performance do processamento
+- [ ] Testar detecção em diferentes iluminações
