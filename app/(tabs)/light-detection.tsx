@@ -6,18 +6,47 @@ import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
 import { LightSensor } from 'expo-sensors';
+import {
+  playLightDetectionWhistle,
+  stopWhistle,
+  cleanup,
+  lightPercentageToFrequency,
+} from '@/lib/audio-synthesis';
 
 export default function LightDetectionScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [lightLevel, setLightLevel] = useState<number>(0);
   const [lightPercentage, setLightPercentage] = useState<number>(0);
   const [subscription, setSubscription] = useState<any>(null);
+  const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
   const colors = useColors();
 
+  // Initialize whistle on component mount
   useEffect(() => {
-    // Subscribe to light sensor on Android
+    // Start whistle when component mounts
+    if (permission?.granted) {
+      setIsWhistleActive(true);
+      playLightDetectionWhistle(lightPercentage, 0.3);
+    }
+
+    return () => {
+      // Clean up whistle on unmount
+      stopWhistle();
+      cleanup();
+    };
+  }, [permission?.granted]);
+
+  // Update whistle frequency based on light changes
+  useEffect(() => {
+    if (isWhistleActive) {
+      playLightDetectionWhistle(lightPercentage, 0.3);
+    }
+  }, [lightPercentage, isWhistleActive]);
+
+  // Subscribe to light sensor on Android
+  useEffect(() => {
     if (Platform.OS === 'android') {
       const subscribe = () => {
         const sub = LightSensor.addListener((data: any) => {
@@ -79,6 +108,9 @@ export default function LightDetectionScreen() {
   }
 
   const handleNavigateToColors = async () => {
+    // Stop whistle before navigation
+    stopWhistle();
+    
     if (Platform.OS !== 'web') {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -86,8 +118,23 @@ export default function LightDetectionScreen() {
     router.push('/color-detection');
   };
 
+  const toggleWhistle = async () => {
+    if (Platform.OS !== 'web') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    if (isWhistleActive) {
+      stopWhistle();
+      setIsWhistleActive(false);
+    } else {
+      setIsWhistleActive(true);
+      playLightDetectionWhistle(lightPercentage, 0.3);
+    }
+  };
+
   // Calculate indicator size based on light level
   const indicatorSize = 60 + (lightPercentage / 100) * 80;
+  const currentFrequency = lightPercentageToFrequency(lightPercentage);
 
   return (
     <View style={styles.container}>
@@ -117,18 +164,38 @@ export default function LightDetectionScreen() {
             <Text style={styles.lightPercentage}>
               {lightPercentage}%
             </Text>
+            <Text style={styles.frequencyLabel}>
+              {currentFrequency} Hz
+            </Text>
           </View>
 
-          {/* Back button */}
-          <Pressable
-            onPress={handleNavigateToColors}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
-            ]}
-          >
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </Pressable>
+          {/* Control buttons */}
+          <View style={styles.buttonContainer}>
+            {/* Toggle whistle button */}
+            <Pressable
+              onPress={toggleWhistle}
+              style={({ pressed }) => [
+                styles.toggleButton,
+                pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+                !isWhistleActive && styles.toggleButtonInactive,
+              ]}
+            >
+              <Text style={styles.toggleButtonText}>
+                {isWhistleActive ? '🔊' : '🔇'}
+              </Text>
+            </Pressable>
+
+            {/* Back button */}
+            <Pressable
+              onPress={handleNavigateToColors}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+              ]}
+            >
+              <Text style={styles.backButtonText}>←</Text>
+            </Pressable>
+          </View>
         </View>
       </CameraView>
     </View>
@@ -181,20 +248,51 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
   },
+  frequencyLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+    marginTop: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toggleButton: {
+    backgroundColor: '#FFFF00',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#000000',
+  },
+  toggleButtonInactive: {
+    backgroundColor: '#CCCCCC',
+    borderColor: '#666666',
+  },
+  toggleButtonText: {
+    fontSize: 32,
+    textAlign: 'center',
+  },
   backButton: {
     backgroundColor: '#FFFF00',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 60,
-    minWidth: 80,
-    minHeight: 80,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
     borderColor: '#000000',
   },
   backButtonText: {
-    fontSize: 18,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'center',

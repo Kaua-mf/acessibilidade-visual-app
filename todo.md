@@ -56,3 +56,14 @@
 - [ ] Testar navegação entre telas
 - [ ] Testar permissões de câmera e áudio
 - [ ] Testar acessibilidade com screen reader
+
+
+## Síntese de Apito Variável
+
+- [x] Criar utilitário de síntese de áudio com Web Audio API
+- [x] Implementar geração de apito com frequência variável (200-2000 Hz)
+- [x] Integrar síntese na Tela 2 de Detecção de Luz
+- [x] Botão para ativar/desativar apito
+- [x] Exibição de frequência em Hz
+- [ ] Testar síntese em diferentes dispositivos
+- [ ] Otimizar performance da síntese de áudio
