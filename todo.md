@@ -171,4 +171,6 @@
 - [x] Mover tab bar mais para cima
 - [x] Posicionar tab bar no meio da tela (bottom: 50%)
 - [x] Adicionar borda inferior para melhor definição
+- [x] Mover tab bar para perto do final da página
+- [x] Garantir que todos os ícones fiquem visíveis
 - [x] Todos os 98 testes passando

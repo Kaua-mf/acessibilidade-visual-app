@@ -20,7 +20,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarStyle: {
           position: 'absolute',
-          bottom: '50%',
+          bottom: 16,
           left: 0,
           right: 0,
           paddingTop: 4,
