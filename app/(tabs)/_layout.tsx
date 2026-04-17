@@ -49,6 +49,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="lightbulb.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="calibration"
+        options={{
+          title: "Calibração",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

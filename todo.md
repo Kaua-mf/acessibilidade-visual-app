@@ -80,3 +80,15 @@
 - [x] Criar 27 testes unitários (todos passando)
 - [ ] Otimizar performance do processamento
 - [ ] Testar detecção em diferentes iluminações
+
+
+## Calibração de Cores
+
+- [x] Criar utilitário de armazenamento de configurações (AsyncStorage)
+- [x] Implementar tela de calibração com sliders interativos
+- [x] Adicionar presets de calibração (interior, exterior, baixa luz)
+- [x] Criar 33 testes unitários (todos passando)
+- [x] Adicionar aba de calibração no layout principal
+- [x] Implementar persistência com AsyncStorage
+- [x] Adicionar validação de configurações
+- [ ] Integrar configurações na detecção de cores (próximo passo)
