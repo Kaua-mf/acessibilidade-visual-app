@@ -143,3 +143,12 @@
 - [x] Respeitar configuração de enabled para ativar/desativar fala
 - [x] Atualizar áudio quando configurações mudam
 - [x] Todos os 98 testes passando
+
+
+## Ajustes de Posicionamento da UI
+
+- [x] Remover texto "Acessibilidade Visual" do topo da tela inicial
+- [x] Subir a barra de abas (tab bar) mais para cima
+- [x] Reduzir altura da tab bar de 56 para 48px
+- [x] Reduzir padding top de 8 para 4px
+- [x] Reduzir bottom padding para melhor espaçamento

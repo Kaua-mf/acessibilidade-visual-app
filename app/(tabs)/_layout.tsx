@@ -9,8 +9,8 @@ import { useColors } from "@/hooks/use-colors";
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
-  const tabBarHeight = 56 + bottomPadding;
+  const bottomPadding = Platform.OS === "web" ? 8 : Math.max(insets.bottom, 4);
+  const tabBarHeight = 48 + bottomPadding;
 
   return (
     <Tabs
@@ -19,7 +19,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          paddingTop: 8,
+          paddingTop: 4,
           paddingBottom: bottomPadding,
           height: tabBarHeight,
           backgroundColor: colors.background,

@@ -27,11 +27,6 @@ export default function HomeScreen() {
       containerClassName="bg-black"
     >
       <View style={styles.container}>
-        {/* Title - Logo abaixo da câmera */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>Acessibilidade Visual</Text>
-        </View>
-
         {/* Feature Cards - Centered */}
         <View style={styles.cardsContainer}>
           {/* Color Detection Card */}
@@ -85,18 +80,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
-  titleSection: {
-    position: 'absolute',
-    top: 16,
-    width: '100%',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
+
   cardsContainer: {
     width: '100%',
     gap: 16,
