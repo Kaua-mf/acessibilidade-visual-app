@@ -1,0 +1,1815 @@
+diff --git a/app/(tabs)/light-detection.tsx b/app/(tabs)/light-detection.tsx
+index ef9b97f..f804e78 100644
+--- a/app/(tabs)/light-detection.tsx
++++ b/app/(tabs)/light-detection.tsx
+@@ -2,10 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
+ import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+ import { CameraView, useCameraPermissions } from 'expo-camera';
+ import * as Haptics from 'expo-haptics';
++import * as Speech from 'expo-speech';
+ import { useRouter } from 'expo-router';
+ import { ScreenContainer } from '@/components/screen-container';
+ import { useColors } from '@/hooks/use-colors';
+-import { LightSensor } from 'expo-sensors';
++import { captureSample } from '@/lib/frame-capture';
++import {
++  createLightSmoother,
++  estimateLight,
++  meanLinearLuminance,
++} from '@/lib/light-analysis';
+ import {
+   playLightDetectionWhistle,
+   stopWhistle,
+@@ -13,71 +19,91 @@ import {
+   lightPercentageToFrequency,
+ } from '@/lib/audio-synthesis';
+ 
++const LIGHT_UPDATE_INTERVAL_MS = 500;
++const WHISTLE_VOLUME = 0.3;
++// Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
++const MAX_CONSECUTIVE_FAILURES = 5;
++const CAMERA_UNAVAILABLE_TEXT = 'Câmera indisponível';
++
++const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
++
+ export default function LightDetectionScreen() {
+   const [permission, requestPermission] = useCameraPermissions();
+-  const [lightLevel, setLightLevel] = useState<number>(0);
+   const [lightPercentage, setLightPercentage] = useState<number>(0);
+-  const [subscription, setSubscription] = useState<any>(null);
++  const [hasReading, setHasReading] = useState<boolean>(false);
++  const [cameraReady, setCameraReady] = useState<boolean>(false);
++  const [cameraFailed, setCameraFailed] = useState<boolean>(false);
+   const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
+   const cameraRef = useRef<CameraView>(null);
+   const router = useRouter();
+   const colors = useColors();
+ 
+-  // Initialize whistle on component mount
++  // Libera o áudio ao sair da tela
+   useEffect(() => {
+-    // Start whistle when component mounts
+-    if (permission?.granted) {
+-      setIsWhistleActive(true);
+-      playLightDetectionWhistle(lightPercentage, 0.3);
+-    }
+-
+     return () => {
+-      // Clean up whistle on unmount
+       stopWhistle();
+       cleanup();
+     };
+-  }, [permission?.granted]);
++  }, []);
+ 
+-  // Update whistle frequency based on light changes
++  // Laço de leitura: mede a luz do que a câmera está vendo (Android, iOS e web).
++  // Uma leitura só começa depois que a anterior terminou (nunca se sobrepõem).
+   useEffect(() => {
+-    if (isWhistleActive) {
+-      playLightDetectionWhistle(lightPercentage, 0.3);
+-    }
+-  }, [lightPercentage, isWhistleActive]);
++    if (!permission?.granted || !cameraReady) return;
+ 
+-  // Subscribe to light sensor on Android
+-  useEffect(() => {
+-    if (Platform.OS === 'android') {
+-      const subscribe = () => {
+-        const sub = LightSensor.addListener((data: any) => {
+-          // Light sensor returns illuminance in lux
+-          // Normalize to 0-100 percentage (0-10000 lux range)
+-          const percentage = Math.min(100, Math.round((data.illuminance / 10000) * 100));
+-          setLightLevel(data.illuminance);
+-          setLightPercentage(percentage);
+-        });
+-        setSubscription(sub);
+-      };
++    let cancelled = false;
++    const smoother = createLightSmoother(0.5);
++
++    const run = async () => {
++      let failures = 0;
++      while (!cancelled) {
++        const startedAt = Date.now();
++
++        try {
++          const camera = cameraRef.current;
++          if (!camera) throw new Error('A câmera ainda não está disponível.');
+ 
+-      subscribe();
++          // O EXIF traz a exposição escolhida pela câmera, que mede a luz melhor
++          // do que o brilho dos pixels (a câmera compensa o brilho sozinha)
++          const sample = await captureSample(camera, { includeExif: true });
++          if (cancelled) return;
+ 
+-      return () => {
+-        if (subscription) {
+-          subscription.remove();
++          failures = 0;
++          const estimate = estimateLight(meanLinearLuminance(sample.data), sample.exif);
++          setLightPercentage(Math.round(smoother.smooth(estimate.percentage)));
++          setHasReading(true);
++          setCameraFailed(false);
++        } catch (error) {
++          if (cancelled) return;
++          failures++;
++          console.warn('Erro ao medir a luz:', error);
++          if (failures === MAX_CONSECUTIVE_FAILURES) {
++            setHasReading(false);
++            setCameraFailed(true);
++            Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
++          }
+         }
+-      };
+-    } else {
+-      // For iOS and Web, simulate light detection
+-      const simulateLightDetection = () => {
+-        const randomLight = Math.floor(Math.random() * 100);
+-        setLightPercentage(randomLight);
+-        setLightLevel(randomLight * 100);
+-      };
+ 
+-      const interval = setInterval(simulateLightDetection, 500);
+-      return () => clearInterval(interval);
++        const elapsed = Date.now() - startedAt;
++        await sleep(Math.max(50, LIGHT_UPDATE_INTERVAL_MS - elapsed));
++      }
++    };
++
++    run();
++
++    return () => {
++      cancelled = true;
++    };
++  }, [permission?.granted, cameraReady]);
++
++  // O apito só começa depois da primeira leitura real e acompanha a luz
++  useEffect(() => {
++    if (!permission?.granted || !hasReading || !isWhistleActive) {
++      stopWhistle();
++      return;
+     }
+-  }, [subscription]);
++    playLightDetectionWhistle(lightPercentage, WHISTLE_VOLUME);
++  }, [permission?.granted, hasReading, isWhistleActive, lightPercentage]);
+ 
+   if (!permission) {
+     return <View />;
+@@ -133,7 +159,6 @@ export default function LightDetectionScreen() {
+       setIsWhistleActive(false);
+     } else {
+       setIsWhistleActive(true);
+-      playLightDetectionWhistle(lightPercentage, 0.3);
+     }
+   };
+ 
+@@ -147,6 +172,7 @@ export default function LightDetectionScreen() {
+         ref={cameraRef}
+         style={styles.camera}
+         facing="back"
++        onCameraReady={() => setCameraReady(true)}
+       >
+         {/* Overlay with light indicator */}
+         <View style={styles.overlay}>
+@@ -165,7 +191,9 @@ export default function LightDetectionScreen() {
+ 
+           {/* Light level text display */}
+           <View style={styles.lightDisplayContainer}>
+-            <Text style={styles.lightLabel}>Intensidade de Luz</Text>
++            <Text style={styles.lightLabel}>
++              {cameraFailed ? CAMERA_UNAVAILABLE_TEXT : 'Intensidade de Luz'}
++            </Text>
+             <Text style={styles.lightPercentage}>
+               {lightPercentage}%
+             </Text>
+diff --git a/lib/__tests__/audio-synthesis.test.ts b/lib/__tests__/audio-synthesis.test.ts
+index f105f8c..3bfcfde 100644
+--- a/lib/__tests__/audio-synthesis.test.ts
++++ b/lib/__tests__/audio-synthesis.test.ts
+@@ -1,5 +1,12 @@
+ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+-import { lightPercentageToFrequency } from '../audio-synthesis';
++import {
++  cleanup,
++  isAudioPlaying,
++  lightPercentageToFrequency,
++  playLightDetectionWhistle,
++  startWhistle,
++  stopWhistle,
++} from '../audio-synthesis';
+ 
+ describe('Audio Synthesis', () => {
+   describe('lightPercentageToFrequency', () => {
+@@ -86,3 +93,158 @@ describe('Audio Synthesis', () => {
+     });
+   });
+ });
++
++
++// Simula a Web Audio API para testar a lógica do apito sem navegador
++type FakeNode = { connect: (n: unknown) => void; disconnect: () => void };
++
++class FakeParam {
++  value = 0;
++  ramps: Array<{ value: number; time: number }> = [];
++  setValueAtTime(value: number) {
++    this.value = value;
++  }
++  cancelScheduledValues() {}
++  exponentialRampToValueAtTime(value: number, time: number) {
++    this.ramps.push({ value, time });
++  }
++}
++
++const created: { oscillators: any[]; gains: any[]; contexts: any[] } = {
++  oscillators: [],
++  gains: [],
++  contexts: [],
++};
++
++class FakeAudioContext {
++  state = 'running';
++  currentTime = 1;
++  destination = {};
++  closed = false;
++  constructor() {
++    created.contexts.push(this);
++  }
++  resume() {
++    return Promise.resolve();
++  }
++  close() {
++    this.closed = true;
++    return Promise.resolve();
++  }
++  createOscillator() {
++    const osc = {
++      type: 'sine',
++      frequency: new FakeParam(),
++      started: false,
++      stopped: false,
++      connect: () => {},
++      disconnect: () => {},
++      start() {
++        osc.started = true;
++      },
++      stop() {
++        osc.stopped = true;
++      },
++    } as FakeNode & Record<string, any>;
++    created.oscillators.push(osc);
++    return osc;
++  }
++  createGain() {
++    const gain = { gain: new FakeParam(), connect: () => {}, disconnect: () => {} };
++    created.gains.push(gain);
++    return gain;
++  }
++}
++
++describe('Audio Synthesis - apito', () => {
++  afterEach(() => {
++    cleanup();
++    delete (globalThis as any).AudioContext;
++    created.oscillators.length = 0;
++    created.gains.length = 0;
++    created.contexts.length = 0;
++  });
++
++  describe('sem Web Audio API (por exemplo, ambiente de testes)', () => {
++    it('should not throw when starting, updating and stopping', () => {
++      expect(() => startWhistle(440, 0.3)).not.toThrow();
++      expect(() => playLightDetectionWhistle(50)).not.toThrow();
++      expect(() => stopWhistle()).not.toThrow();
++      expect(() => cleanup()).not.toThrow();
++    });
++
++    it('should report not playing when no audio is available', () => {
++      startWhistle(440, 0.3);
++      expect(isAudioPlaying()).toBe(false);
++    });
++  });
++
++  describe('com Web Audio API', () => {
++    beforeEach(() => {
++      (globalThis as any).AudioContext = FakeAudioContext;
++    });
++
++    it('should start an oscillator at the requested frequency and volume', () => {
++      startWhistle(600, 0.25);
++      expect(isAudioPlaying()).toBe(true);
++      expect(created.oscillators).toHaveLength(1);
++      expect(created.oscillators[0].started).toBe(true);
++      expect(created.oscillators[0].frequency.value).toBe(600);
++      expect(created.gains[0].gain.value).toBe(0.25);
++    });
++
++    it('should stop the oscillator', () => {
++      startWhistle(600, 0.25);
++      stopWhistle();
++      expect(isAudioPlaying()).toBe(false);
++      expect(created.oscillators[0].stopped).toBe(true);
++    });
++
++    it('should start a whistle from the light level and then glide to new frequencies', () => {
++      playLightDetectionWhistle(0);
++      expect(created.oscillators).toHaveLength(1);
++      expect(created.oscillators[0].frequency.value).toBe(lightPercentageToFrequency(0));
++
++      playLightDetectionWhistle(100);
++      // Não cria outro oscilador: só desliza a frequência
++      expect(created.oscillators).toHaveLength(1);
++      const ramps = created.oscillators[0].frequency.ramps;
++      expect(ramps).toHaveLength(1);
++      expect(ramps[0].value).toBe(lightPercentageToFrequency(100));
++    });
++
++    it('should update the volume of the running whistle', () => {
++      playLightDetectionWhistle(10, 0.3);
++      playLightDetectionWhistle(20, 0.6);
++      expect(created.gains[0].gain.value).toBe(0.6);
++    });
++
++    it('should clamp the volume between 0 and 1', () => {
++      startWhistle(440, 5);
++      expect(created.gains[0].gain.value).toBe(1);
++      startWhistle(440, -2);
++      expect(created.gains[1].gain.value).toBe(0);
++    });
++
++    it('should close the audio context on cleanup and allow starting again', () => {
++      startWhistle(440, 0.3);
++      cleanup();
++      expect(created.contexts[0].closed).toBe(true);
++      expect(isAudioPlaying()).toBe(false);
++
++      startWhistle(880, 0.3);
++      expect(isAudioPlaying()).toBe(true);
++      expect(created.contexts).toHaveLength(2);
++    });
++
++    it('should not glide when nothing is playing', () => {
++      stopWhistle();
++      playLightDetectionWhistle(50);
++      stopWhistle();
++      playLightDetectionWhistle(70);
++      // Cada início cria um oscilador novo, sem rampas no oscilador parado
++      expect(created.oscillators).toHaveLength(2);
++      expect(created.oscillators[0].frequency.ramps).toHaveLength(0);
++    });
++  });
++});
+diff --git a/lib/__tests__/frame-sampling.test.ts b/lib/__tests__/frame-sampling.test.ts
+index 7c2f478..792c74c 100644
+--- a/lib/__tests__/frame-sampling.test.ts
++++ b/lib/__tests__/frame-sampling.test.ts
+@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
+ import {
+   SAMPLE_WIDTH,
+   base64ToBytes,
++  bytesToBase64,
+   regionRadiusFromSetting,
+ } from '../frame-sampling';
+ 
+@@ -39,6 +40,23 @@ describe('Frame Sampling', () => {
+     });
+   });
+ 
++  describe('bytesToBase64', () => {
++    it('should match Node Buffer for lengths 0 to 10', () => {
++      for (let length = 0; length <= 10; length++) {
++        const bytes = new Uint8Array(length);
++        for (let i = 0; i < length; i++) bytes[i] = (i * 37 + 11) & 255;
++        expect(bytesToBase64(bytes)).toBe(Buffer.from(bytes).toString('base64'));
++      }
++    });
++
++    it('should round trip with base64ToBytes', () => {
++      const original = new Uint8Array(1000);
++      for (let i = 0; i < original.length; i++) original[i] = (i * 131 + 7) & 255;
++      const roundTrip = base64ToBytes(bytesToBase64(original));
++      expect(Array.from(roundTrip)).toEqual(Array.from(original));
++    });
++  });
++
+   describe('regionRadiusFromSetting', () => {
+     it('should use the percentage of the shorter side', () => {
+       // Padrão 20% de 48 px = ~10 px de raio
+diff --git a/lib/__tests__/light-analysis.test.ts b/lib/__tests__/light-analysis.test.ts
+new file mode 100644
+index 0000000..755d7fb
+--- /dev/null
++++ b/lib/__tests__/light-analysis.test.ts
+@@ -0,0 +1,259 @@
++import { describe, it, expect } from 'vitest';
++import {
++  createLightSmoother,
++  estimateLight,
++  evToPercentage,
++  exposureEv100,
++  lightnessFromLuminance,
++  meanLinearLuminance,
++  parseExposureInfo,
++} from '../light-analysis';
++
++function solidImage(r: number, g: number, b: number, pixels = 16, alpha = 255): Uint8ClampedArray {
++  const data = new Uint8ClampedArray(pixels * 4);
++  for (let i = 0; i < pixels; i++) {
++    data[i * 4] = r;
++    data[i * 4 + 1] = g;
++    data[i * 4 + 2] = b;
++    data[i * 4 + 3] = alpha;
++  }
++  return data;
++}
++
++describe('Light Analysis', () => {
++  describe('meanLinearLuminance', () => {
++    it('should be 1 for a white image', () => {
++      expect(meanLinearLuminance(solidImage(255, 255, 255))).toBeCloseTo(1, 3);
++    });
++
++    it('should be 0 for a black image', () => {
++      expect(meanLinearLuminance(solidImage(0, 0, 0))).toBe(0);
++    });
++
++    it('should decode sRGB gamma (mid gray 128 is about 0.216, not 0.5)', () => {
++      expect(meanLinearLuminance(solidImage(128, 128, 128))).toBeCloseTo(0.2158, 3);
++    });
++
++    it('should weight green more than red and blue', () => {
++      const red = meanLinearLuminance(solidImage(255, 0, 0));
++      const green = meanLinearLuminance(solidImage(0, 255, 0));
++      const blue = meanLinearLuminance(solidImage(0, 0, 255));
++      expect(green).toBeGreaterThan(red);
++      expect(red).toBeGreaterThan(blue);
++    });
++
++    it('should average different pixels', () => {
++      const data = new Uint8ClampedArray([255, 255, 255, 255, 0, 0, 0, 255]);
++      expect(meanLinearLuminance(data)).toBeCloseTo(0.5, 3);
++    });
++
++    it('should ignore transparent pixels', () => {
++      const data = new Uint8ClampedArray([255, 255, 255, 255, 0, 0, 0, 0]);
++      expect(meanLinearLuminance(data)).toBeCloseTo(1, 3);
++    });
++
++    it('should return 0 for empty data', () => {
++      expect(meanLinearLuminance(new Uint8ClampedArray(0))).toBe(0);
++    });
++  });
++
++  describe('lightnessFromLuminance', () => {
++    it('should map 0 to 0 and 1 to 100', () => {
++      expect(lightnessFromLuminance(0)).toBe(0);
++      expect(lightnessFromLuminance(1)).toBeCloseTo(100, 3);
++    });
++
++    it('should map middle gray (0.18) to about 50', () => {
++      const lightness = lightnessFromLuminance(0.18);
++      expect(lightness).toBeGreaterThan(48);
++      expect(lightness).toBeLessThan(51);
++    });
++
++    it('should increase with luminance', () => {
++      let previous = -1;
++      for (let y = 0; y <= 1; y += 0.05) {
++        const value = lightnessFromLuminance(y);
++        expect(value).toBeGreaterThanOrEqual(previous);
++        previous = value;
++      }
++    });
++
++    it('should clamp out of range input', () => {
++      expect(lightnessFromLuminance(-1)).toBe(0);
++      expect(lightnessFromLuminance(5)).toBeCloseTo(100, 3);
++    });
++  });
++
++  describe('evToPercentage', () => {
++    it('should map EV 0 to 0% and EV 15 to 100%', () => {
++      expect(evToPercentage(0)).toBe(0);
++      expect(evToPercentage(15)).toBe(100);
++    });
++
++    it('should be linear in EV (logarithmic in light)', () => {
++      expect(evToPercentage(7.5)).toBeCloseTo(50, 5);
++    });
++
++    it('should clamp values outside the range', () => {
++      expect(evToPercentage(-5)).toBe(0);
++      expect(evToPercentage(20)).toBe(100);
++    });
++  });
++
++  describe('parseExposureInfo', () => {
++    it('should read flat EXIF (Android style)', () => {
++      const info = parseExposureInfo({ ExposureTime: 0.01, ISOSpeedRatings: 200, FNumber: 1.8 });
++      expect(info.exposureTime).toBe(0.01);
++      expect(info.iso).toBe(200);
++      expect(info.fNumber).toBe(1.8);
++    });
++
++    it('should read nested {Exif} with arrays (iOS style)', () => {
++      const info = parseExposureInfo({
++        '{Exif}': { ExposureTime: 0.0333, ISOSpeedRatings: [80], FNumber: 1.6, BrightnessValue: 4.2 },
++      });
++      expect(info.exposureTime).toBe(0.0333);
++      expect(info.iso).toBe(80);
++      expect(info.fNumber).toBe(1.6);
++      expect(info.brightnessValue).toBe(4.2);
++    });
++
++    it('should read fractions and numeric strings', () => {
++      const info = parseExposureInfo({ ExposureTime: '1/30', ISOSpeedRatings: '400', FNumber: '2.2' });
++      expect(info.exposureTime).toBeCloseTo(1 / 30, 6);
++      expect(info.iso).toBe(400);
++      expect(info.fNumber).toBe(2.2);
++    });
++
++    it('should derive the f-number from ApertureValue when FNumber is missing', () => {
++      const info = parseExposureInfo({ ApertureValue: 2 }); // 2^(2/2) = 2
++      expect(info.fNumber).toBeCloseTo(2, 6);
++    });
++
++    it('should return an empty object for missing or invalid EXIF', () => {
++      expect(parseExposureInfo(undefined)).toEqual({});
++      expect(parseExposureInfo(null)).toEqual({});
++      expect(parseExposureInfo('texto')).toEqual({});
++    });
++
++    it('should drop non-positive and non-numeric values', () => {
++      const info = parseExposureInfo({ ExposureTime: 0, ISOSpeedRatings: 'abc', FNumber: -1 });
++      expect(info.exposureTime).toBeUndefined();
++      expect(info.iso).toBeUndefined();
++      expect(info.fNumber).toBeUndefined();
++    });
++  });
++
++  describe('exposureEv100', () => {
++    it('should give EV 15 for f/16, 1/125 s, ISO 100 (sunny 16 rule)', () => {
++      expect(exposureEv100(1 / 125, 100, 16)).toBeCloseTo(14.97, 1);
++    });
++
++    it('should drop by 1 EV when ISO doubles', () => {
++      const base = exposureEv100(1 / 60, 100, 2);
++      const doubled = exposureEv100(1 / 60, 200, 2);
++      expect(base - doubled).toBeCloseTo(1, 6);
++    });
++  });
++
++  describe('estimateLight', () => {
++    // A câmera compensa a exposição sozinha, então a foto sempre fica com brilho médio parecido
++    const autoExposedLuminance = 0.18;
++
++    it('should tell a bright scene from a dim one even when the pixels look the same', () => {
++      const bright = estimateLight(autoExposedLuminance, {
++        ExposureTime: 1 / 1000,
++        ISOSpeedRatings: 50,
++        FNumber: 1.8,
++      });
++      const dim = estimateLight(autoExposedLuminance, {
++        ExposureTime: 1 / 15,
++        ISOSpeedRatings: 800,
++        FNumber: 1.8,
++      });
++      expect(bright.source).toBe('exif-exposure');
++      expect(bright.percentage).toBeGreaterThan(dim.percentage + 40);
++    });
++
++    it('should use BrightnessValue when available (EV100 = Bv + 5)', () => {
++      const estimate = estimateLight(0.5, { '{Exif}': { BrightnessValue: 5 } });
++      expect(estimate.source).toBe('exif-brightness');
++      expect(estimate.ev).toBe(10);
++      expect(estimate.percentage).toBe(67);
++    });
++
++    it('should raise the estimate when pixels are brighter than middle gray', () => {
++      const exif = { ExposureTime: 1 / 60, ISOSpeedRatings: 100, FNumber: 2 };
++      const normal = estimateLight(0.18, exif);
++      const brighter = estimateLight(0.72, exif); // +2 EV
++      expect(brighter.ev! - normal.ev!).toBeCloseTo(2, 5);
++    });
++
++    it('should limit the pixel correction to 4 EV', () => {
++      const exif = { ExposureTime: 1 / 60, ISOSpeedRatings: 100, FNumber: 2 };
++      const noise = estimateLight(0.0000001, exif);
++      const base = estimateLight(0.18, exif);
++      expect(base.ev! - noise.ev!).toBeCloseTo(4, 5);
++    });
++
++    it('should fall back to pixel lightness without EXIF', () => {
++      const dark = estimateLight(0.001);
++      const bright = estimateLight(0.8);
++      expect(dark.source).toBe('pixels');
++      expect(bright.percentage).toBeGreaterThan(dark.percentage);
++    });
++
++    it('should fall back to pixels when EXIF is incomplete', () => {
++      const estimate = estimateLight(0.18, { ISOSpeedRatings: 100 });
++      expect(estimate.source).toBe('pixels');
++    });
++
++    it('should return 0% for black and 100% for white without EXIF', () => {
++      expect(estimateLight(0).percentage).toBe(0);
++      expect(estimateLight(1).percentage).toBe(100);
++    });
++
++    it('should always stay between 0 and 100', () => {
++      const extremes = [
++        { ExposureTime: 1 / 8000, ISOSpeedRatings: 25, FNumber: 1.4 },
++        { ExposureTime: 1, ISOSpeedRatings: 6400, FNumber: 2.8 },
++        { BrightnessValue: -10 },
++        { BrightnessValue: 30 },
++      ];
++      for (const exif of extremes) {
++        const { percentage } = estimateLight(0.18, exif);
++        expect(percentage).toBeGreaterThanOrEqual(0);
++        expect(percentage).toBeLessThanOrEqual(100);
++      }
++    });
++  });
++
++  describe('createLightSmoother', () => {
++    it('should return the first value unchanged', () => {
++      const smoother = createLightSmoother(0.5);
++      expect(smoother.smooth(80)).toBe(80);
++    });
++
++    it('should move part of the way toward each new value', () => {
++      const smoother = createLightSmoother(0.5);
++      smoother.smooth(0);
++      expect(smoother.smooth(100)).toBe(50);
++      expect(smoother.smooth(100)).toBe(75);
++    });
++
++    it('should converge to a constant input', () => {
++      const smoother = createLightSmoother(0.5);
++      smoother.smooth(0);
++      let value = 0;
++      for (let i = 0; i < 20; i++) value = smoother.smooth(60);
++      expect(value).toBeCloseTo(60, 3);
++    });
++
++    it('should forget history after reset', () => {
++      const smoother = createLightSmoother(0.5);
++      smoother.smooth(0);
++      smoother.reset();
++      expect(smoother.smooth(90)).toBe(90);
++    });
++  });
++});
+diff --git a/lib/__tests__/wav-tone.test.ts b/lib/__tests__/wav-tone.test.ts
+new file mode 100644
+index 0000000..b451539
+--- /dev/null
++++ b/lib/__tests__/wav-tone.test.ts
+@@ -0,0 +1,147 @@
++import { describe, it, expect } from 'vitest';
++import { base64ToBytes } from '../frame-sampling';
++import {
++  TONE_MAX_HZ,
++  TONE_MIN_HZ,
++  TONE_STEPS,
++  WAV_SAMPLE_RATE,
++  frequencyToToneStep,
++  generateToneWav,
++  generateToneWavBase64,
++  toneLoopLayout,
++  toneStepFrequency,
++} from '../wav-tone';
++
++function readAscii(bytes: Uint8Array, offset: number, length: number): string {
++  return String.fromCharCode(...Array.from(bytes.slice(offset, offset + length)));
++}
++
++function toSamples(wav: Uint8Array): number[] {
++  const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
++  const samples: number[] = [];
++  for (let i = 44; i + 1 < wav.length; i += 2) {
++    samples.push(view.getInt16(i, true));
++  }
++  return samples;
++}
++
++function countRisingZeroCrossings(samples: number[]): number {
++  let crossings = 0;
++  for (let i = 1; i < samples.length; i++) {
++    if (samples[i - 1] < 0 && samples[i] >= 0) crossings++;
++  }
++  return crossings;
++}
++
++describe('WAV Tone', () => {
++  describe('tone steps', () => {
++    it('should start at the minimum and end at the maximum frequency', () => {
++      expect(toneStepFrequency(0)).toBeCloseTo(TONE_MIN_HZ, 6);
++      expect(toneStepFrequency(TONE_STEPS - 1)).toBeCloseTo(TONE_MAX_HZ, 6);
++    });
++
++    it('should increase with every step', () => {
++      for (let step = 1; step < TONE_STEPS; step++) {
++        expect(toneStepFrequency(step)).toBeGreaterThan(toneStepFrequency(step - 1));
++      }
++    });
++
++    it('should keep a constant ratio between steps (logarithmic spacing)', () => {
++      const first = toneStepFrequency(1) / toneStepFrequency(0);
++      const last = toneStepFrequency(TONE_STEPS - 1) / toneStepFrequency(TONE_STEPS - 2);
++      expect(first).toBeCloseTo(last, 6);
++    });
++
++    it('should round trip a step through its frequency', () => {
++      for (let step = 0; step < TONE_STEPS; step++) {
++        expect(frequencyToToneStep(toneStepFrequency(step))).toBe(step);
++      }
++    });
++
++    it('should clamp frequencies outside the range', () => {
++      expect(frequencyToToneStep(50)).toBe(0);
++      expect(frequencyToToneStep(9000)).toBe(TONE_STEPS - 1);
++    });
++  });
++
++  describe('toneLoopLayout', () => {
++    it('should reproduce the requested frequency within 0.1%', () => {
++      for (let step = 0; step < TONE_STEPS; step++) {
++        const frequency = toneStepFrequency(step);
++        const { actualFrequency } = toneLoopLayout(frequency);
++        expect(Math.abs(actualFrequency - frequency) / frequency).toBeLessThan(0.001);
++      }
++    });
++
++    it('should last about one second', () => {
++      const { samples } = toneLoopLayout(440);
++      expect(samples).toBeGreaterThan(WAV_SAMPLE_RATE * 0.95);
++      expect(samples).toBeLessThan(WAV_SAMPLE_RATE * 1.05);
++    });
++  });
++
++  describe('generateToneWav', () => {
++    it('should write a valid PCM 16-bit mono header', () => {
++      const wav = generateToneWav(440);
++      const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
++
++      expect(readAscii(wav, 0, 4)).toBe('RIFF');
++      expect(readAscii(wav, 8, 4)).toBe('WAVE');
++      expect(readAscii(wav, 12, 4)).toBe('fmt ');
++      expect(view.getUint16(20, true)).toBe(1); // PCM
++      expect(view.getUint16(22, true)).toBe(1); // mono
++      expect(view.getUint32(24, true)).toBe(WAV_SAMPLE_RATE);
++      expect(view.getUint32(28, true)).toBe(WAV_SAMPLE_RATE * 2);
++      expect(view.getUint16(32, true)).toBe(2);
++      expect(view.getUint16(34, true)).toBe(16);
++      expect(readAscii(wav, 36, 4)).toBe('data');
++    });
++
++    it('should have consistent chunk sizes', () => {
++      const wav = generateToneWav(880);
++      const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
++      expect(view.getUint32(40, true)).toBe(wav.length - 44);
++      expect(view.getUint32(4, true)).toBe(wav.length - 8);
++    });
++
++    it('should contain the number of samples from toneLoopLayout', () => {
++      const wav = generateToneWav(440);
++      expect(toSamples(wav)).toHaveLength(toneLoopLayout(440).samples);
++    });
++
++    it('should oscillate at the requested frequency', () => {
++      for (const frequency of [200, 440, 1000, 2000]) {
++        const samples = toSamples(generateToneWav(frequency));
++        const seconds = samples.length / WAV_SAMPLE_RATE;
++        const measured = countRisingZeroCrossings(samples) / seconds;
++        expect(Math.abs(measured - frequency) / frequency).toBeLessThan(0.02);
++      }
++    });
++
++    it('should loop without a click: starts at zero and ends where it started', () => {
++      for (const frequency of [200, 333, 1234, 2000]) {
++        const samples = toSamples(generateToneWav(frequency));
++        expect(samples[0]).toBe(0);
++        // A amostra seguinte à última seria igual à primeira (0): a última precisa
++        // ser tão pequena quanto o passo entre amostras vizinhas
++        const step = Math.abs(samples[1] - samples[0]);
++        expect(Math.abs(samples[samples.length - 1])).toBeLessThanOrEqual(step);
++      }
++    });
++
++    it('should respect the amplitude without clipping', () => {
++      const samples = toSamples(generateToneWav(440, { amplitude: 0.5 }));
++      const peak = Math.max(...samples.map((s) => Math.abs(s)));
++      expect(peak).toBeGreaterThan(0.49 * 32767);
++      expect(peak).toBeLessThanOrEqual(0.5 * 32767 + 1);
++    });
++
++    it('should encode to base64 that decodes to the same bytes', () => {
++      const wav = generateToneWav(660);
++      const decoded = base64ToBytes(generateToneWavBase64(660));
++      expect(decoded).toHaveLength(wav.length);
++      expect(Array.from(decoded.slice(0, 64))).toEqual(Array.from(wav.slice(0, 64)));
++      expect(Array.from(decoded.slice(-64))).toEqual(Array.from(wav.slice(-64)));
++    });
++  });
++});
+diff --git a/lib/audio-synthesis.ts b/lib/audio-synthesis.ts
+index a3f7fdd..e435ea8 100644
+--- a/lib/audio-synthesis.ts
++++ b/lib/audio-synthesis.ts
+@@ -1,21 +1,21 @@
+ /**
+  * Audio Synthesis Utility
+- * Generates variable-frequency whistle sounds for light detection feedback
++ * Gera um apito de frequência variável como retorno sonoro da detecção de luz.
++ *
++ * A implementação de áudio depende da plataforma (veja tone-player.ts e
++ * tone-player.native.ts); este arquivo expõe sempre a mesma API.
+  */
+ 
+-let audioContext: AudioContext | null = null;
+-let oscillator: OscillatorNode | null = null;
+-let gainNode: GainNode | null = null;
+-let isPlaying = false;
++import { createTonePlayer } from './tone-player';
++import type { TonePlayer } from './tone-player.types';
+ 
+-/**
+- * Initialize the Web Audio API context
+- */
+-function initializeAudioContext(): AudioContext {
+-  if (!audioContext) {
+-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
++let tonePlayer: TonePlayer | null = null;
++
++function getPlayer(): TonePlayer {
++  if (!tonePlayer) {
++    tonePlayer = createTonePlayer();
+   }
+-  return audioContext;
++  return tonePlayer;
+ }
+ 
+ /**
+@@ -24,53 +24,14 @@ function initializeAudioContext(): AudioContext {
+  * @param volume - Volume level (0-1)
+  */
+ export function startWhistle(frequency: number = 1000, volume: number = 0.3): void {
+-  try {
+-    if (isPlaying) {
+-      stopWhistle();
+-    }
+-
+-    const context = initializeAudioContext();
+-
+-    // Resume audio context if suspended (required for iOS)
+-    if (context.state === 'suspended') {
+-      context.resume();
+-    }
+-
+-    // Create oscillator (generates the tone)
+-    oscillator = context.createOscillator();
+-    oscillator.type = 'sine'; // Smooth sine wave for whistle-like sound
+-    oscillator.frequency.value = frequency;
+-
+-    // Create gain node (controls volume)
+-    gainNode = context.createGain();
+-    gainNode.gain.value = volume;
+-
+-    // Connect nodes
+-    oscillator.connect(gainNode);
+-    gainNode.connect(context.destination);
+-
+-    // Start oscillator
+-    oscillator.start();
+-    isPlaying = true;
+-  } catch (error) {
+-    console.error('Error starting whistle:', error);
+-  }
++  getPlayer().start(frequency, volume);
+ }
+ 
+ /**
+  * Stop playing the whistle
+  */
+ export function stopWhistle(): void {
+-  try {
+-    if (oscillator && isPlaying) {
+-      oscillator.stop();
+-      oscillator.disconnect();
+-      oscillator = null;
+-      isPlaying = false;
+-    }
+-  } catch (error) {
+-    console.error('Error stopping whistle:', error);
+-  }
++  tonePlayer?.stop();
+ }
+ 
+ /**
+@@ -78,21 +39,7 @@ export function stopWhistle(): void {
+  * @param frequency - New frequency in Hz
+  */
+ export function setWhistleFrequency(frequency: number): void {
+-  try {
+-    if (oscillator && isPlaying) {
+-      // Use exponential ramp for smooth frequency transitions
+-      const context = initializeAudioContext();
+-      const currentTime = context.currentTime;
+-      
+-      // Smooth transition over 50ms
+-      oscillator.frequency.exponentialRampToValueAtTime(
+-        frequency,
+-        currentTime + 0.05
+-      );
+-    }
+-  } catch (error) {
+-    console.error('Error setting whistle frequency:', error);
+-  }
++  tonePlayer?.setFrequency(frequency);
+ }
+ 
+ /**
+@@ -100,13 +47,7 @@ export function setWhistleFrequency(frequency: number): void {
+  * @param volume - Volume level (0-1)
+  */
+ export function setWhistleVolume(volume: number): void {
+-  try {
+-    if (gainNode) {
+-      gainNode.gain.value = Math.max(0, Math.min(1, volume));
+-    }
+-  } catch (error) {
+-    console.error('Error setting whistle volume:', error);
+-  }
++  tonePlayer?.setVolume(volume);
+ }
+ 
+ /**
+@@ -118,16 +59,16 @@ export function setWhistleVolume(volume: number): void {
+ export function lightPercentageToFrequency(lightPercentage: number): number {
+   // Clamp percentage to 0-100
+   const clamped = Math.max(0, Math.min(100, lightPercentage));
+-  
++
+   // Map 0-100 to 200-2000 Hz
+   // Using exponential mapping for more natural-sounding progression
+   const minFreq = 200;
+   const maxFreq = 2000;
+-  
++
+   // Exponential mapping: more noticeable changes at lower light levels
+   const normalized = clamped / 100;
+   const frequency = minFreq * Math.pow(maxFreq / minFreq, normalized);
+-  
++
+   return Math.round(frequency);
+ }
+ 
+@@ -136,17 +77,15 @@ export function lightPercentageToFrequency(lightPercentage: number): number {
+  * @param lightPercentage - Light level as percentage (0-100)
+  * @param volume - Volume level (0-1)
+  */
+-export function playLightDetectionWhistle(
+-  lightPercentage: number,
+-  volume: number = 0.3
+-): void {
++export function playLightDetectionWhistle(lightPercentage: number, volume: number = 0.3): void {
+   const frequency = lightPercentageToFrequency(lightPercentage);
+-  
+-  if (!isPlaying) {
+-    startWhistle(frequency, volume);
++  const player = getPlayer();
++
++  if (!player.isPlaying()) {
++    player.start(frequency, volume);
+   } else {
+-    setWhistleFrequency(frequency);
+-    setWhistleVolume(volume);
++    player.setFrequency(frequency);
++    player.setVolume(volume);
+   }
+ }
+ 
+@@ -161,47 +100,20 @@ export function playBeep(
+   duration: number = 100,
+   volume: number = 0.3
+ ): void {
+-  try {
+-    const context = initializeAudioContext();
+-
+-    // Resume audio context if suspended
+-    if (context.state === 'suspended') {
+-      context.resume();
+-    }
+-
+-    const osc = context.createOscillator();
+-    const gain = context.createGain();
+-
+-    osc.frequency.value = frequency;
+-    osc.type = 'sine';
+-
+-    gain.gain.setValueAtTime(volume, context.currentTime);
+-    gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + duration / 1000);
+-
+-    osc.connect(gain);
+-    gain.connect(context.destination);
+-
+-    osc.start(context.currentTime);
+-    osc.stop(context.currentTime + duration / 1000);
+-  } catch (error) {
+-    console.error('Error playing beep:', error);
+-  }
++  getPlayer().beep(frequency, duration, volume);
+ }
+ 
+ /**
+  * Clean up audio resources
+  */
+ export function cleanup(): void {
+-  stopWhistle();
+-  if (audioContext) {
+-    audioContext.close();
+-    audioContext = null;
+-  }
++  tonePlayer?.dispose();
++  tonePlayer = null;
+ }
+ 
+ /**
+  * Check if audio is currently playing
+  */
+ export function isAudioPlaying(): boolean {
+-  return isPlaying;
++  return tonePlayer?.isPlaying() ?? false;
+ }
+diff --git a/lib/frame-capture.ts b/lib/frame-capture.ts
+index 5bed3da..b2739e2 100644
+--- a/lib/frame-capture.ts
++++ b/lib/frame-capture.ts
+@@ -13,8 +13,15 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+ import { SAMPLE_WIDTH } from './frame-sampling';
+ import { decodeJpegBase64, type DecodedFrame } from './jpeg-decode';
+ 
+-/** Amostra reduzida da câmera, já decodificada em pixels RGBA. */
+-export type CapturedSample = DecodedFrame;
++export interface CapturedSample extends DecodedFrame {
++  /** EXIF da foto original (só quando includeExif é true e o aparelho fornece). */
++  exif?: unknown;
++}
++
++export interface CaptureOptions {
++  /** Pede o EXIF da foto (usado pela detecção de luz). */
++  includeExif?: boolean;
++}
+ 
+ async function removeTemporaryFile(uri: string | undefined): Promise<void> {
+   // Na web a "uri" é um data URL, não há arquivo para apagar
+@@ -26,7 +33,10 @@ async function removeTemporaryFile(uri: string | undefined): Promise<void> {
+   }
+ }
+ 
+-export async function captureSample(camera: CameraView): Promise<CapturedSample> {
++export async function captureSample(
++  camera: CameraView,
++  options: CaptureOptions = {}
++): Promise<CapturedSample> {
+   let photoUri: string | undefined;
+   let sampleUri: string | undefined;
+ 
+@@ -35,7 +45,7 @@ export async function captureSample(camera: CameraView): Promise<CapturedSample>
+       quality: 0.3,
+       skipProcessing: true, // mais rápido; a orientação não importa para o centro da imagem
+       shutterSound: false,
+-      exif: false,
++      exif: options.includeExif === true,
+       base64: false,
+     });
+     if (!photo) {
+@@ -53,7 +63,7 @@ export async function captureSample(camera: CameraView): Promise<CapturedSample>
+       throw new Error('A amostra reduzida veio sem dados.');
+     }
+ 
+-    return decodeJpegBase64(sample.base64);
++    return { ...decodeJpegBase64(sample.base64), exif: photo.exif };
+   } finally {
+     await removeTemporaryFile(photoUri);
+     await removeTemporaryFile(sampleUri);
+diff --git a/lib/frame-sampling.ts b/lib/frame-sampling.ts
+index c75d463..1a1e888 100644
+--- a/lib/frame-sampling.ts
++++ b/lib/frame-sampling.ts
+@@ -58,6 +58,23 @@ export function base64ToBytes(base64: string): Uint8Array {
+   return bytes;
+ }
+ 
++/** Converte bytes em base64 (inverso de base64ToBytes). */
++export function bytesToBase64(bytes: Uint8Array): string {
++  let result = '';
++  for (let i = 0; i < bytes.length; i += 3) {
++    const b0 = bytes[i];
++    const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
++    const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
++    const triple = (b0 << 16) | (b1 << 8) | b2;
++
++    result += BASE64_ALPHABET[(triple >> 18) & 63];
++    result += BASE64_ALPHABET[(triple >> 12) & 63];
++    result += i + 1 < bytes.length ? BASE64_ALPHABET[(triple >> 6) & 63] : '=';
++    result += i + 2 < bytes.length ? BASE64_ALPHABET[triple & 63] : '=';
++  }
++  return result;
++}
++
+ /**
+  * Converte o "tamanho da região" da calibração (5-50) no raio, em pixels,
+  * da região média na amostra reduzida.
+diff --git a/lib/light-analysis.ts b/lib/light-analysis.ts
+new file mode 100644
+index 0000000..7de99a0
+--- /dev/null
++++ b/lib/light-analysis.ts
+@@ -0,0 +1,219 @@
++/**
++ * Light Analysis (funções puras, sem dependência de React Native)
++ *
++ * Estima "quanta luz há" a partir de uma foto da câmera. Funciona em Android,
++ * iOS e web, ao contrário do sensor de luz ambiente (que só existe no Android
++ * e mede onde o celular está, não para onde a câmera aponta).
++ *
++ * Problema: a câmera ajusta a exposição sozinha, então o brilho médio dos
++ * pixels quase não muda entre um quarto escuro e uma sala clara. Por isso:
++ *  1. Quando a foto traz EXIF (tempo de exposição, ISO, abertura, ou o
++ *     BrightnessValue do iOS), calculamos o brilho real da cena em EV, que
++ *     leva em conta a exposição escolhida pela câmera.
++ *  2. Sem EXIF, usamos a luminosidade percebida (CIE L*) dos pixels.
++ * Nos dois casos a escala é logarítmica, como a percepção humana de luz.
++ */
++
++/** EV100 mapeado para 0%: ambiente muito escuro. */
++export const EV_AT_0_PERCENT = 0;
++/** EV100 mapeado para 100%: sol forte ao ar livre. */
++export const EV_AT_100_PERCENT = 15;
++
++/** Luminância linear (0-1) que a câmera costuma tentar obter (cinza médio). */
++const MIDDLE_GRAY = 0.18;
++
++/** Quanto os pixels podem corrigir o EV vindo do EXIF (em stops). */
++const MAX_PIXEL_CORRECTION_EV = 4;
++
++export type LightSource = 'exif-brightness' | 'exif-exposure' | 'pixels';
++
++export interface LightEstimate {
++  /** Nível de luz de 0 a 100 (escala logarítmica). */
++  percentage: number;
++  /** De onde veio a estimativa. */
++  source: LightSource;
++  /** EV100 estimado da cena (só quando veio do EXIF). */
++  ev?: number;
++}
++
++export interface ExposureInfo {
++  exposureTime?: number; // segundos
++  iso?: number;
++  fNumber?: number;
++  brightnessValue?: number; // APEX Bv (iOS)
++}
++
++// Tabela sRGB (0-255) -> luminância linear (0-1)
++const SRGB_TO_LINEAR: Float32Array = (() => {
++  const table = new Float32Array(256);
++  for (let i = 0; i < 256; i++) {
++    const c = i / 255;
++    table[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
++  }
++  return table;
++})();
++
++/**
++ * Luminância linear média (0-1) de uma imagem RGBA, com pesos Rec. 709.
++ * Pixels quase transparentes são ignorados.
++ */
++export function meanLinearLuminance(rgba: ArrayLike<number>): number {
++  let total = 0;
++  let count = 0;
++  for (let i = 0; i + 3 < rgba.length; i += 4) {
++    if (rgba[i + 3] < 128) continue;
++    total +=
++      0.2126 * SRGB_TO_LINEAR[rgba[i] & 255] +
++      0.7152 * SRGB_TO_LINEAR[rgba[i + 1] & 255] +
++      0.0722 * SRGB_TO_LINEAR[rgba[i + 2] & 255];
++    count++;
++  }
++  return count === 0 ? 0 : total / count;
++}
++
++/** Luminosidade percebida CIE L* (0-100) a partir da luminância linear (0-1). */
++export function lightnessFromLuminance(luminance: number): number {
++  const y = Math.max(0, Math.min(1, luminance));
++  const lStar = y <= 0.008856 ? 903.3 * y : 116 * Math.cbrt(y) - 16;
++  return Math.max(0, Math.min(100, lStar));
++}
++
++/** Converte um EV100 estimado em porcentagem (0-100), em escala logarítmica. */
++export function evToPercentage(ev: number): number {
++  const fraction = (ev - EV_AT_0_PERCENT) / (EV_AT_100_PERCENT - EV_AT_0_PERCENT);
++  return Math.max(0, Math.min(100, fraction * 100));
++}
++
++/** Lê um número de formatos variados: 0.033, "0.033", "1/30", [100], etc. */
++function parseNumber(value: unknown): number | undefined {
++  if (Array.isArray(value)) {
++    return value.length > 0 ? parseNumber(value[0]) : undefined;
++  }
++  if (typeof value === 'number') {
++    return Number.isFinite(value) ? value : undefined;
++  }
++  if (typeof value === 'string') {
++    const text = value.trim();
++    const fraction = /^(-?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(text);
++    if (fraction) {
++      const denominator = parseFloat(fraction[2]);
++      return denominator === 0 ? undefined : parseFloat(fraction[1]) / denominator;
++    }
++    const parsed = parseFloat(text);
++    return Number.isFinite(parsed) ? parsed : undefined;
++  }
++  return undefined;
++}
++
++function pick(sources: Record<string, unknown>[], keys: string[]): number | undefined {
++  for (const source of sources) {
++    for (const key of keys) {
++      const parsed = parseNumber(source[key]);
++      if (parsed !== undefined) return parsed;
++    }
++  }
++  return undefined;
++}
++
++/**
++ * Extrai os dados de exposição do EXIF devolvido pela câmera.
++ * No iOS os campos costumam vir dentro de "{Exif}"; no Android, no nível raiz.
++ */
++export function parseExposureInfo(exif: unknown): ExposureInfo {
++  if (!exif || typeof exif !== 'object') return {};
++
++  const root = exif as Record<string, unknown>;
++  const sources: Record<string, unknown>[] = [root];
++  for (const nestedKey of ['{Exif}', 'Exif']) {
++    const nested = root[nestedKey];
++    if (nested && typeof nested === 'object') {
++      sources.push(nested as Record<string, unknown>);
++    }
++  }
++
++  const exposureTime = pick(sources, ['ExposureTime']);
++  const iso = pick(sources, ['ISOSpeedRatings', 'PhotographicSensitivity', 'ISO']);
++  let fNumber = pick(sources, ['FNumber']);
++  if (fNumber === undefined) {
++    const apertureValue = pick(sources, ['ApertureValue']);
++    if (apertureValue !== undefined) {
++      fNumber = Math.pow(2, apertureValue / 2);
++    }
++  }
++  const brightnessValue = pick(sources, ['BrightnessValue']);
++
++  return {
++    exposureTime: exposureTime !== undefined && exposureTime > 0 ? exposureTime : undefined,
++    iso: iso !== undefined && iso > 0 ? iso : undefined,
++    fNumber: fNumber !== undefined && fNumber > 0 ? fNumber : undefined,
++    brightnessValue,
++  };
++}
++
++/**
++ * EV100 da exposição escolhida pela câmera: log2(N²/t) - log2(ISO/100).
++ * Cenas mais claras fazem a câmera escolher exposições "mais rápidas", e
++ * esse número sobe.
++ */
++export function exposureEv100(exposureTime: number, iso: number, fNumber: number): number {
++  return Math.log2((fNumber * fNumber) / exposureTime) - Math.log2(iso / 100);
++}
++
++/**
++ * Estima o nível de luz (0-100) de uma foto.
++ *
++ * @param meanLuminance Luminância linear média (0-1) dos pixels da foto.
++ * @param exif EXIF devolvido pela câmera (opcional).
++ */
++export function estimateLight(meanLuminance: number, exif?: unknown): LightEstimate {
++  const info = parseExposureInfo(exif);
++
++  // 1) iOS: o BrightnessValue (APEX) já é o brilho da cena. EV100 = Bv + 5.
++  if (info.brightnessValue !== undefined) {
++    const ev = info.brightnessValue + 5;
++    return { percentage: Math.round(evToPercentage(ev)), source: 'exif-brightness', ev };
++  }
++
++  // 2) Exposição escolhida pela câmera, corrigida pelo brilho real dos pixels
++  if (info.exposureTime !== undefined && info.iso !== undefined && info.fNumber !== undefined) {
++    const base = exposureEv100(info.exposureTime, info.iso, info.fNumber);
++    const luminance = Math.max(1e-4, meanLuminance);
++    const correction = Math.max(
++      -MAX_PIXEL_CORRECTION_EV,
++      Math.min(MAX_PIXEL_CORRECTION_EV, Math.log2(luminance / MIDDLE_GRAY))
++    );
++    const ev = base + correction;
++    return { percentage: Math.round(evToPercentage(ev)), source: 'exif-exposure', ev };
++  }
++
++  // 3) Sem EXIF: luminosidade percebida dos pixels
++  return {
++    percentage: Math.round(lightnessFromLuminance(meanLuminance)),
++    source: 'pixels',
++  };
++}
++
++export interface LightSmoother {
++  /** Suaviza um novo valor (média móvel exponencial). */
++  smooth(value: number): number;
++  reset(): void;
++}
++
++/**
++ * Suaviza as leituras para o apito não "pular" a cada foto.
++ * @param alpha Peso da leitura nova (0-1). 1 = sem suavização.
++ */
++export function createLightSmoother(alpha: number = 0.5): LightSmoother {
++  const weight = Math.max(0.05, Math.min(1, alpha));
++  let current: number | null = null;
++
++  return {
++    smooth(value: number): number {
++      current = current === null ? value : current + weight * (value - current);
++      return current;
++    },
++    reset(): void {
++      current = null;
++    },
++  };
++}
+diff --git a/lib/tone-player.native.ts b/lib/tone-player.native.ts
+new file mode 100644
+index 0000000..fae7c76
+--- /dev/null
++++ b/lib/tone-player.native.ts
+@@ -0,0 +1,166 @@
++/**
++ * Gerador de apito para Android e iOS.
++ *
++ * O React Native não tem Web Audio API, então o apito é tocado pelo expo-audio
++ * (já instalado no projeto, funciona no Expo Go) a partir de pequenos arquivos
++ * WAV em loop, um para cada passo de frequência (veja wav-tone.ts). Os arquivos
++ * são gerados na primeira vez que cada tom é usado e ficam no cache do app.
++ *
++ * Limitação: a frequência muda em degraus de ~1,7 semitom e, ao trocar de
++ * degrau, o expo-audio recarrega o arquivo, o que pode causar uma pausa
++ * mínima. Para um tom contínuo e sem degraus seria preciso uma biblioteca com
++ * osciladores nativos (ex.: react-native-audio-api), que exige development
++ * build e não roda no Expo Go.
++ */
++
++import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
++import * as FileSystem from 'expo-file-system/legacy';
++
++import type { TonePlayer } from './tone-player.types';
++import { frequencyToToneStep, generateToneWavBase64, toneStepFrequency } from './wav-tone';
++
++// Mude o sufixo se o formato dos arquivos mudar, para não reaproveitar o cache antigo
++const FILE_PREFIX = 'whistle-v1-';
++
++async function ensureToneFile(step: number): Promise<string> {
++  const directory = FileSystem.cacheDirectory;
++  if (!directory) {
++    throw new Error('Diretório de cache indisponível.');
++  }
++
++  const uri = `${directory}${FILE_PREFIX}${step}.wav`;
++  const info = await FileSystem.getInfoAsync(uri);
++  if (!info.exists) {
++    await FileSystem.writeAsStringAsync(uri, generateToneWavBase64(toneStepFrequency(step)), {
++      encoding: FileSystem.EncodingType.Base64,
++    });
++  }
++  return uri;
++}
++
++export function createTonePlayer(): TonePlayer {
++  let player: AudioPlayer | null = null;
++  let loadedStep = -1;
++
++  // Estado desejado; sync() leva o player até ele
++  let wantPlaying = false;
++  let wantStep = 0;
++  let wantVolume = 0.3;
++
++  let working = false;
++  let again = false;
++  let disposed = false;
++  let audioModeConfigured = false;
++  let beepTimer: ReturnType<typeof setTimeout> | null = null;
++
++  const clampVolume = (volume: number) => Math.max(0, Math.min(1, volume));
++
++  // Só uma sincronização por vez; pedidos que chegam no meio viram uma nova volta
++  const sync = async (): Promise<void> => {
++    if (working) {
++      again = true;
++      return;
++    }
++    working = true;
++    try {
++      do {
++        again = false;
++        if (disposed) return;
++
++        if (!audioModeConfigured) {
++          audioModeConfigured = true;
++          try {
++            // iOS: tocar mesmo com o botão de silencioso ligado
++            await setAudioModeAsync({ playsInSilentMode: true });
++          } catch (error) {
++            console.warn('Não foi possível configurar o modo de áudio:', error);
++          }
++        }
++
++        if (!wantPlaying) {
++          player?.pause();
++          continue;
++        }
++
++        const step = wantStep;
++        let justLoaded = false;
++        if (!player || step !== loadedStep) {
++          const uri = await ensureToneFile(step);
++          if (disposed) return;
++          if (!player) {
++            player = createAudioPlayer({ uri });
++          } else {
++            player.replace({ uri });
++          }
++          player.loop = true;
++          loadedStep = step;
++          justLoaded = true;
++        }
++
++        player.volume = wantVolume;
++        if (justLoaded || !player.playing) {
++          player.play();
++        }
++      } while (again);
++    } catch (error) {
++      console.warn('Erro ao tocar o apito:', error);
++    } finally {
++      working = false;
++    }
++  };
++
++  return {
++    start(frequency, volume) {
++      disposed = false;
++      wantPlaying = true;
++      wantStep = frequencyToToneStep(frequency);
++      wantVolume = clampVolume(volume);
++      void sync();
++    },
++
++    setFrequency(frequency) {
++      wantStep = frequencyToToneStep(frequency);
++      if (wantPlaying) void sync();
++    },
++
++    setVolume(volume) {
++      wantVolume = clampVolume(volume);
++      if (wantPlaying) void sync();
++    },
++
++    stop() {
++      wantPlaying = false;
++      void sync();
++    },
++
++    beep(frequency, durationMs, volume) {
++      // Bipe = tom curto no mesmo player (o app não usa bipes hoje)
++      if (beepTimer) clearTimeout(beepTimer);
++      this.start(frequency, volume);
++      beepTimer = setTimeout(() => {
++        beepTimer = null;
++        this.stop();
++      }, durationMs);
++    },
++
++    dispose() {
++      disposed = true;
++      wantPlaying = false;
++      if (beepTimer) {
++        clearTimeout(beepTimer);
++        beepTimer = null;
++      }
++      try {
++        player?.remove();
++      } catch (error) {
++        console.warn('Erro ao liberar o player de áudio:', error);
++      }
++      player = null;
++      loadedStep = -1;
++    },
++
++    isPlaying() {
++      return wantPlaying;
++    },
++  };
++}
+diff --git a/lib/tone-player.ts b/lib/tone-player.ts
+new file mode 100644
+index 0000000..22a981a
+--- /dev/null
++++ b/lib/tone-player.ts
+@@ -0,0 +1,148 @@
++/**
++ * Gerador de apito para a web (Web Audio API).
++ *
++ * No Android e no iOS o Metro usa tone-player.native.ts no lugar deste
++ * arquivo, porque o React Native não tem AudioContext.
++ */
++
++import type { TonePlayer } from './tone-player.types';
++
++type AudioContextConstructor = new () => AudioContext;
++
++function getAudioContextConstructor(): AudioContextConstructor | null {
++  const scope = globalThis as unknown as {
++    AudioContext?: AudioContextConstructor;
++    webkitAudioContext?: AudioContextConstructor;
++  };
++  return scope.AudioContext ?? scope.webkitAudioContext ?? null;
++}
++
++export function createTonePlayer(): TonePlayer {
++  let context: AudioContext | null = null;
++  let oscillator: OscillatorNode | null = null;
++  let gainNode: GainNode | null = null;
++  let playing = false;
++  let warned = false;
++
++  const getContext = (): AudioContext | null => {
++    if (context) return context;
++    const Constructor = getAudioContextConstructor();
++    if (!Constructor) {
++      if (!warned) {
++        warned = true;
++        console.warn('Web Audio API indisponível: o apito não vai tocar neste ambiente.');
++      }
++      return null;
++    }
++    context = new Constructor();
++    return context;
++  };
++
++  const clampVolume = (volume: number) => Math.max(0, Math.min(1, volume));
++
++  const stop = () => {
++    if (oscillator) {
++      try {
++        oscillator.stop();
++        oscillator.disconnect();
++      } catch (error) {
++        console.error('Error stopping whistle:', error);
++      }
++    }
++    oscillator = null;
++    playing = false;
++  };
++
++  return {
++    start(frequency, volume) {
++      try {
++        if (playing) stop();
++        const ctx = getContext();
++        if (!ctx) return;
++
++        // Navegadores (e o iOS) podem deixar o contexto suspenso até um toque
++        if (ctx.state === 'suspended') {
++          void ctx.resume();
++        }
++
++        oscillator = ctx.createOscillator();
++        oscillator.type = 'sine';
++        oscillator.frequency.value = frequency;
++
++        gainNode = ctx.createGain();
++        gainNode.gain.value = clampVolume(volume);
++
++        oscillator.connect(gainNode);
++        gainNode.connect(ctx.destination);
++        oscillator.start();
++        playing = true;
++      } catch (error) {
++        console.error('Error starting whistle:', error);
++      }
++    },
++
++    setFrequency(frequency) {
++      try {
++        if (oscillator && context && playing) {
++          const now = context.currentTime;
++          oscillator.frequency.cancelScheduledValues(now);
++          oscillator.frequency.setValueAtTime(oscillator.frequency.value, now);
++          // Transição suave de 50 ms
++          oscillator.frequency.exponentialRampToValueAtTime(frequency, now + 0.05);
++        }
++      } catch (error) {
++        console.error('Error setting whistle frequency:', error);
++      }
++    },
++
++    setVolume(volume) {
++      try {
++        if (gainNode) {
++          gainNode.gain.value = clampVolume(volume);
++        }
++      } catch (error) {
++        console.error('Error setting whistle volume:', error);
++      }
++    },
++
++    stop,
++
++    beep(frequency, durationMs, volume) {
++      try {
++        const ctx = getContext();
++        if (!ctx) return;
++        if (ctx.state === 'suspended') {
++          void ctx.resume();
++        }
++
++        const osc = ctx.createOscillator();
++        const gain = ctx.createGain();
++        osc.frequency.value = frequency;
++        osc.type = 'sine';
++
++        gain.gain.setValueAtTime(clampVolume(volume), ctx.currentTime);
++        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + durationMs / 1000);
++
++        osc.connect(gain);
++        gain.connect(ctx.destination);
++        osc.start(ctx.currentTime);
++        osc.stop(ctx.currentTime + durationMs / 1000);
++      } catch (error) {
++        console.error('Error playing beep:', error);
++      }
++    },
++
++    dispose() {
++      stop();
++      if (context) {
++        void context.close();
++        context = null;
++      }
++      gainNode = null;
++    },
++
++    isPlaying() {
++      return playing;
++    },
++  };
++}
+diff --git a/lib/tone-player.types.ts b/lib/tone-player.types.ts
+new file mode 100644
+index 0000000..a2ac2a3
+--- /dev/null
++++ b/lib/tone-player.types.ts
+@@ -0,0 +1,22 @@
++/**
++ * Contrato do gerador de apito. Há duas implementações, escolhidas pelo Metro
++ * conforme a plataforma:
++ *  - tone-player.ts         → web (Web Audio API) e testes
++ *  - tone-player.native.ts  → Android e iOS (expo-audio + arquivos WAV)
++ */
++export interface TonePlayer {
++  /** Começa a tocar um tom contínuo. */
++  start(frequency: number, volume: number): void;
++  /** Muda a frequência do tom que está tocando. */
++  setFrequency(frequency: number): void;
++  /** Muda o volume (0-1). */
++  setVolume(volume: number): void;
++  /** Para o tom contínuo. */
++  stop(): void;
++  /** Toca um bipe curto. */
++  beep(frequency: number, durationMs: number, volume: number): void;
++  /** Para tudo e libera os recursos de áudio. */
++  dispose(): void;
++  /** Se o tom contínuo está ativo. */
++  isPlaying(): boolean;
++}
+diff --git a/lib/wav-tone.ts b/lib/wav-tone.ts
+new file mode 100644
+index 0000000..0fb6cf2
+--- /dev/null
++++ b/lib/wav-tone.ts
+@@ -0,0 +1,105 @@
++/**
++ * WAV Tone Generator (funções puras, sem dependência de React Native)
++ *
++ * O React Native não tem Web Audio API (AudioContext), então no celular o
++ * apito é tocado pelo expo-audio a partir de pequenos arquivos WAV gerados
++ * aqui. Cada arquivo contém um número inteiro de ciclos de uma senoide, então
++ * pode tocar em loop sem estalo na emenda.
++ */
++
++import { bytesToBase64 } from './frame-sampling';
++
++export const WAV_SAMPLE_RATE = 22050;
++
++/** Faixa de frequências do apito (mesma de lightPercentageToFrequency). */
++export const TONE_MIN_HZ = 200;
++export const TONE_MAX_HZ = 2000;
++
++/**
++ * Quantidade de tons pré-definidos entre TONE_MIN_HZ e TONE_MAX_HZ.
++ * 24 passos em ~3,3 oitavas dão ~1,7 semitom por passo.
++ */
++export const TONE_STEPS = 24;
++
++/** Duração de cada trecho em loop, em segundos. */
++const DEFAULT_LOOP_SECONDS = 1;
++
++/** Frequência (Hz) do passo `step` (0 a TONE_STEPS - 1), em espaçamento logarítmico. */
++export function toneStepFrequency(step: number): number {
++  const clamped = Math.max(0, Math.min(TONE_STEPS - 1, Math.round(step)));
++  const fraction = clamped / (TONE_STEPS - 1);
++  return TONE_MIN_HZ * Math.pow(TONE_MAX_HZ / TONE_MIN_HZ, fraction);
++}
++
++/** Passo mais próximo de uma frequência qualquer. */
++export function frequencyToToneStep(frequency: number): number {
++  const clamped = Math.max(TONE_MIN_HZ, Math.min(TONE_MAX_HZ, frequency));
++  const fraction = Math.log(clamped / TONE_MIN_HZ) / Math.log(TONE_MAX_HZ / TONE_MIN_HZ);
++  return Math.round(fraction * (TONE_STEPS - 1));
++}
++
++export interface ToneWavOptions {
++  sampleRate?: number;
++  /** Duração aproximada do trecho em loop, em segundos. */
++  seconds?: number;
++  /** Amplitude de 0 a 1 (o volume final é controlado pelo player). */
++  amplitude?: number;
++}
++
++/**
++ * Número de amostras do trecho e frequência real que ele reproduz.
++ * O trecho tem um número inteiro de ciclos, então a frequência real fica
++ * muito próxima da pedida (diferença menor que 0,1%).
++ */
++export function toneLoopLayout(
++  frequency: number,
++  sampleRate: number = WAV_SAMPLE_RATE,
++  seconds: number = DEFAULT_LOOP_SECONDS
++): { samples: number; cycles: number; actualFrequency: number } {
++  const cycles = Math.max(1, Math.round(frequency * seconds));
++  const samples = Math.max(2, Math.round((cycles * sampleRate) / frequency));
++  return { samples, cycles, actualFrequency: (cycles * sampleRate) / samples };
++}
++
++function writeAscii(view: DataView, offset: number, text: string): void {
++  for (let i = 0; i < text.length; i++) {
++    view.setUint8(offset + i, text.charCodeAt(i));
++  }
++}
++
++/** Gera um arquivo WAV (PCM 16 bits, mono) com uma senoide em loop perfeito. */
++export function generateToneWav(frequency: number, options: ToneWavOptions = {}): Uint8Array {
++  const sampleRate = options.sampleRate ?? WAV_SAMPLE_RATE;
++  const amplitude = Math.max(0, Math.min(1, options.amplitude ?? 0.9));
++  const { samples, cycles } = toneLoopLayout(frequency, sampleRate, options.seconds);
++
++  const dataBytes = samples * 2;
++  const buffer = new ArrayBuffer(44 + dataBytes);
++  const view = new DataView(buffer);
++
++  writeAscii(view, 0, 'RIFF');
++  view.setUint32(4, 36 + dataBytes, true);
++  writeAscii(view, 8, 'WAVE');
++  writeAscii(view, 12, 'fmt ');
++  view.setUint32(16, 16, true); // tamanho do bloco fmt
++  view.setUint16(20, 1, true); // PCM
++  view.setUint16(22, 1, true); // mono
++  view.setUint32(24, sampleRate, true);
++  view.setUint32(28, sampleRate * 2, true); // bytes por segundo
++  view.setUint16(32, 2, true); // bytes por amostra
++  view.setUint16(34, 16, true); // bits por amostra
++  writeAscii(view, 36, 'data');
++  view.setUint32(40, dataBytes, true);
++
++  for (let i = 0; i < samples; i++) {
++    const value = Math.sin((2 * Math.PI * cycles * i) / samples) * amplitude * 32767;
++    view.setInt16(44 + i * 2, Math.round(value), true);
++  }
++
++  return new Uint8Array(buffer);
++}
++
++/** Mesmo que generateToneWav, já em base64 (para gravar em arquivo). */
++export function generateToneWavBase64(frequency: number, options: ToneWavOptions = {}): string {
++  return bytesToBase64(generateToneWav(frequency, options));
++}

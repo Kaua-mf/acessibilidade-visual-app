@@ -1,0 +1,1108 @@
+diff --git a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
+index 1ae38b8..50efbfd 100644
+--- a/app/(tabs)/_layout.tsx
++++ b/app/(tabs)/_layout.tsx
+@@ -38,6 +38,7 @@ export default function TabLayout() {
+         name="index"
+         options={{
+           title: "Home",
++          tabBarAccessibilityLabel: "Início",
+           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+         }}
+       />
+@@ -45,6 +46,7 @@ export default function TabLayout() {
+         name="color-detection"
+         options={{
+           title: "Cores",
++          tabBarAccessibilityLabel: "Identificação de cores",
+           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paintbrush.fill" color={color} />,
+         }}
+       />
+@@ -52,6 +54,7 @@ export default function TabLayout() {
+         name="light-detection"
+         options={{
+           title: "Luz",
++          tabBarAccessibilityLabel: "Detecção de luz",
+           tabBarIcon: ({ color }) => <IconSymbol size={28} name="lightbulb.fill" color={color} />,
+         }}
+       />
+@@ -59,6 +62,7 @@ export default function TabLayout() {
+         name="calibration"
+         options={{
+           title: "Calibração",
++          tabBarAccessibilityLabel: "Calibração",
+           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
+         }}
+       />
+diff --git a/app/(tabs)/calibration.tsx b/app/(tabs)/calibration.tsx
+index 0a53084..444410a 100644
+--- a/app/(tabs)/calibration.tsx
++++ b/app/(tabs)/calibration.tsx
+@@ -1,9 +1,10 @@
+ import React, { useState, useEffect } from 'react';
+-import { View, Text, Pressable, ScrollView, StyleSheet, Platform } from 'react-native';
++import { AccessibilityInfo, View, Text, Pressable, ScrollView, StyleSheet, Platform } from 'react-native';
+ import * as Haptics from 'expo-haptics';
+ import { useRouter } from 'expo-router';
+ import { ScreenContainer } from '@/components/screen-container';
+ import { useColors } from '@/hooks/use-colors';
++import { optionLabel, presetLabel } from '@/lib/accessibility-labels';
+ import {
+   CalibrationSettings,
+   DEFAULT_SETTINGS,
+@@ -117,6 +118,7 @@ export default function CalibrationScreen() {
+     
+     const preset = await applyPreset(presetName);
+     setSettings(preset);
++    AccessibilityInfo.announceForAccessibility(`Preset ${presetLabel(presetName)} aplicado`);
+   };
+ 
+   const handleReset = async () => {
+@@ -126,6 +128,7 @@ export default function CalibrationScreen() {
+     
+     await resetCalibrationSettings();
+     setSettings(DEFAULT_SETTINGS);
++    AccessibilityInfo.announceForAccessibility('Ajustes restaurados para o padrão');
+   };
+ 
+   const handleBack = async () => {
+@@ -149,7 +152,9 @@ export default function CalibrationScreen() {
+         <View style={styles.container}>
+           {/* Header */}
+           <View style={styles.header}>
+-            <Text style={styles.title}>⚙️ Calibração</Text>
++            <Text style={styles.title} accessibilityRole="header" accessibilityLabel="Calibração">
++              ⚙️ Calibração
++            </Text>
+             <Text style={styles.description}>
+               {getCalibrationDescription(settings)}
+             </Text>
+@@ -157,12 +162,19 @@ export default function CalibrationScreen() {
+ 
+           {/* Presets Section */}
+           <View style={styles.section}>
+-            <Text style={styles.sectionTitle}>Presets Rápidos</Text>
+-            <View style={styles.presetsContainer}>
++            <Text style={styles.sectionTitle} accessibilityRole="header">Presets Rápidos</Text>
++            <View
++              style={styles.presetsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Presets rápidos"
++            >
+               {Object.entries(CALIBRATION_PRESETS).map(([key, preset]) => (
+                 <Pressable
+                   key={key}
+                   onPress={() => handlePresetPress(key as keyof typeof CALIBRATION_PRESETS)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={presetLabel(key)}
++                  accessibilityState={{ checked: settings.preset === key, selected: settings.preset === key }}
+                   style={({ pressed }) => [
+                     styles.presetButton,
+                     settings.preset === key && styles.presetButtonActive,
+@@ -184,11 +196,21 @@ export default function CalibrationScreen() {
+ 
+           {/* Sensitivity Slider */}
+           <View style={styles.section}>
+-            <View style={styles.sliderHeader}>
++            <View
++              style={styles.sliderHeader}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={optionLabel('Sensibilidade de cores', settings.colorSensitivity, 'percent')}
++            >
+               <Text style={styles.sliderLabel}>Sensibilidade de Cores</Text>
+               <Text style={styles.sliderValue}>{settings.colorSensitivity}%</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Tolerante</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -200,11 +222,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Rigoroso</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Sensibilidade de cores"
++              accessibilityHint="De Tolerante a Rigoroso"
++            >
+               {[0, 25, 50, 75, 100].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handleSensitivityChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Sensibilidade de cores', value, 'percent')}
++                  accessibilityState={{ checked: settings.colorSensitivity === value, selected: settings.colorSensitivity === value }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     settings.colorSensitivity === value && styles.sliderButtonActive,
+@@ -224,11 +254,21 @@ export default function CalibrationScreen() {
+ 
+           {/* Min Confidence Slider */}
+           <View style={styles.section}>
+-            <View style={styles.sliderHeader}>
++            <View
++              style={styles.sliderHeader}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={optionLabel('Confiança mínima', settings.minConfidence, 'percent')}
++            >
+               <Text style={styles.sliderLabel}>Confiança Mínima</Text>
+               <Text style={styles.sliderValue}>{settings.minConfidence}%</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Baixa</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -240,11 +280,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Alta</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Confiança mínima"
++              accessibilityHint="De Baixa a Alta"
++            >
+               {[30, 50, 70, 85, 100].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handleMinConfidenceChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Confiança mínima', value, 'percent')}
++                  accessibilityState={{ checked: settings.minConfidence === value, selected: settings.minConfidence === value }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     settings.minConfidence === value && styles.sliderButtonActive,
+@@ -264,11 +312,21 @@ export default function CalibrationScreen() {
+ 
+           {/* Region Size Slider */}
+           <View style={styles.section}>
+-            <View style={styles.sliderHeader}>
++            <View
++              style={styles.sliderHeader}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={optionLabel('Tamanho da região', settings.regionSize, 'pixels')}
++            >
+               <Text style={styles.sliderLabel}>Tamanho da Região</Text>
+               <Text style={styles.sliderValue}>{settings.regionSize}px</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Pequeno</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -280,11 +338,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Grande</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Tamanho da região"
++              accessibilityHint="De Pequeno a Grande"
++            >
+               {[10, 15, 20, 30, 40].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handleRegionSizeChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Tamanho da região', value, 'pixels')}
++                  accessibilityState={{ checked: settings.regionSize === value, selected: settings.regionSize === value }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     settings.regionSize === value && styles.sliderButtonActive,
+@@ -304,11 +370,21 @@ export default function CalibrationScreen() {
+ 
+           {/* Update Frequency Slider */}
+           <View style={styles.section}>
+-            <View style={styles.sliderHeader}>
++            <View
++              style={styles.sliderHeader}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={optionLabel('Frequência de atualização', settings.updateFrequency, 'milliseconds')}
++            >
+               <Text style={styles.sliderLabel}>Frequência de Atualização</Text>
+               <Text style={styles.sliderValue}>{settings.updateFrequency}ms</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Rápido</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -320,11 +396,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Lento</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Frequência de atualização"
++              accessibilityHint="De Rápido a Lento"
++            >
+               {[300, 500, 700, 900, 1000].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handleUpdateFrequencyChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Frequência de atualização', value, 'milliseconds')}
++                  accessibilityState={{ checked: settings.updateFrequency === value, selected: settings.updateFrequency === value }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     settings.updateFrequency === value && styles.sliderButtonActive,
+@@ -344,14 +428,26 @@ export default function CalibrationScreen() {
+ 
+           {/* Speech Settings Section */}
+           <View style={styles.section}>
+-            <Text style={styles.sectionTitle}>🔊 Configurações de Fala</Text>
++            <Text style={styles.sectionTitle} accessibilityRole="header" accessibilityLabel="Configurações de fala">
++              🔊 Configurações de Fala
++            </Text>
+ 
+             {/* Speech Rate Slider */}
+-            <View style={styles.sliderHeader}>
++            <View
++              style={styles.sliderHeader}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={`Velocidade da fala: ${getSpeechRateDescription(speechSettings.rate)}`}
++            >
+               <Text style={styles.sliderLabel}>Velocidade da Fala</Text>
+               <Text style={styles.sliderValue}>{getSpeechRateDescription(speechSettings.rate)}</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Lento</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -363,11 +459,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Rápido</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Velocidade da fala"
++              accessibilityHint="De Lento a Rápido"
++            >
+               {[0.6, 0.8, 0.9, 1.1, 1.3].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handleSpeechRateChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Velocidade da fala', value, 'multiplier')}
++                  accessibilityState={{ checked: Math.abs(speechSettings.rate - value) < 0.05, selected: Math.abs(speechSettings.rate - value) < 0.05 }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     Math.abs(speechSettings.rate - value) < 0.05 && styles.sliderButtonActive,
+@@ -385,11 +489,21 @@ export default function CalibrationScreen() {
+             </View>
+ 
+             {/* Pitch Slider */}
+-            <View style={[styles.sliderHeader, { marginTop: 12 }]}>
++            <View
++              style={[styles.sliderHeader, { marginTop: 12 }]}
++              accessible
++              accessibilityRole="text"
++              accessibilityLabel={`Tom da voz: ${getPitchDescription(speechSettings.pitch)}`}
++            >
+               <Text style={styles.sliderLabel}>Tom da Voz</Text>
+               <Text style={styles.sliderValue}>{getPitchDescription(speechSettings.pitch)}</Text>
+             </View>
+-            <View style={styles.sliderContainer}>
++            <View
++              style={styles.sliderContainer}
++              accessible={false}
++              importantForAccessibility="no-hide-descendants"
++              accessibilityElementsHidden
++            >
+               <Text style={styles.sliderMin}>Grave</Text>
+               <View style={styles.slider}>
+                 <View
+@@ -401,11 +515,19 @@ export default function CalibrationScreen() {
+               </View>
+               <Text style={styles.sliderMax}>Agudo</Text>
+             </View>
+-            <View style={styles.sliderButtonsContainer}>
++            <View
++              style={styles.sliderButtonsContainer}
++              accessibilityRole="radiogroup"
++              accessibilityLabel="Tom da voz"
++              accessibilityHint="De Grave a Agudo"
++            >
+               {[0.7, 0.85, 1.0, 1.15, 1.3].map((value) => (
+                 <Pressable
+                   key={value}
+                   onPress={() => handlePitchChange(value)}
++                  accessibilityRole="radio"
++                  accessibilityLabel={optionLabel('Tom da voz', value, 'none')}
++                  accessibilityState={{ checked: Math.abs(speechSettings.pitch - value) < 0.05, selected: Math.abs(speechSettings.pitch - value) < 0.05 }}
+                   style={({ pressed }) => [
+                     styles.sliderButton,
+                     Math.abs(speechSettings.pitch - value) < 0.05 && styles.sliderButtonActive,
+@@ -425,7 +547,9 @@ export default function CalibrationScreen() {
+ 
+           {/* Info Box */}
+           <View style={styles.infoBox}>
+-            <Text style={styles.infoTitle}>💡 Dicas de Calibração</Text>
++            <Text style={styles.infoTitle} accessibilityRole="header" accessibilityLabel="Dicas de calibração">
++              💡 Dicas de Calibração
++            </Text>
+             <Text style={styles.infoText}>
+               • Aumentar sensibilidade em ambientes com iluminação variável{'\n'}
+               • Diminuir sensibilidade em ambientes com cores vibrantes{'\n'}
+@@ -438,6 +562,9 @@ export default function CalibrationScreen() {
+           <View style={styles.buttonContainer}>
+             <Pressable
+               onPress={handleReset}
++              accessibilityRole="button"
++              accessibilityLabel="Restaurar padrão"
++              accessibilityHint="Volta todos os ajustes de calibração para os valores originais"
+               style={({ pressed }) => [
+                 styles.resetButton,
+                 pressed && { opacity: 0.8 },
+@@ -448,6 +575,9 @@ export default function CalibrationScreen() {
+ 
+             <Pressable
+               onPress={handleBack}
++              accessibilityRole="button"
++              accessibilityLabel="Voltar"
++              accessibilityHint="Volta para a tela anterior"
+               style={({ pressed }) => [
+                 styles.backButton,
+                 pressed && { opacity: 0.8 },
+diff --git a/app/(tabs)/index.tsx b/app/(tabs)/index.tsx
+index a2535c0..6a0b11e 100644
+--- a/app/(tabs)/index.tsx
++++ b/app/(tabs)/index.tsx
+@@ -32,6 +32,9 @@ export default function HomeScreen() {
+           {/* Color Detection Card */}
+           <Pressable
+             onPress={handleColorDetectionPress}
++            accessibilityRole="button"
++            accessibilityLabel="Identificação de cores. Detecte e identifique cores em tempo real."
++            accessibilityHint="Abre a câmera para identificar cores"
+             style={({ pressed }) => [
+               styles.featureCard,
+               pressed && styles.featureCardPressed,
+@@ -51,6 +54,9 @@ export default function HomeScreen() {
+           {/* Light Detection Card */}
+           <Pressable
+             onPress={handleLightDetectionPress}
++            accessibilityRole="button"
++            accessibilityLabel="Detecção de luz. Ouça um apito que muda conforme a intensidade de luz."
++            accessibilityHint="Abre a câmera para medir a luz"
+             style={({ pressed }) => [
+               styles.featureCard,
+               pressed && styles.featureCardPressed,
+diff --git a/app/(tabs)/light-detection.tsx b/app/(tabs)/light-detection.tsx
+index f804e78..f763f02 100644
+--- a/app/(tabs)/light-detection.tsx
++++ b/app/(tabs)/light-detection.tsx
+@@ -1,11 +1,13 @@
+ import React, { useState, useRef, useEffect } from 'react';
+-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
++import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+ import { CameraView, useCameraPermissions } from 'expo-camera';
+ import * as Haptics from 'expo-haptics';
+ import * as Speech from 'expo-speech';
+ import { useRouter } from 'expo-router';
+ import { ScreenContainer } from '@/components/screen-container';
+ import { useColors } from '@/hooks/use-colors';
++import { lightReadingLabel } from '@/lib/accessibility-labels';
++import { useScreenReaderEnabled } from '@/lib/use-screen-reader';
+ import { captureSample } from '@/lib/frame-capture';
+ import {
+   createLightSmoother,
+@@ -35,9 +37,16 @@ export default function LightDetectionScreen() {
+   const [cameraFailed, setCameraFailed] = useState<boolean>(false);
+   const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
+   const cameraRef = useRef<CameraView>(null);
++  const screenReaderEnabled = useScreenReaderEnabled();
++  // Em ref: o laço de leitura sempre usa o valor mais recente, sem precisar reiniciar
++  const screenReaderRef = useRef<boolean>(false);
+   const router = useRouter();
+   const colors = useColors();
+ 
++  useEffect(() => {
++    screenReaderRef.current = screenReaderEnabled;
++  }, [screenReaderEnabled]);
++
+   // Libera o áudio ao sair da tela
+   useEffect(() => {
+     return () => {
+@@ -80,7 +89,12 @@ export default function LightDetectionScreen() {
+           if (failures === MAX_CONSECUTIVE_FAILURES) {
+             setHasReading(false);
+             setCameraFailed(true);
+-            Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
++            // Com leitor de tela ligado, usa a voz dele (evita duas vozes ao mesmo tempo)
++            if (screenReaderRef.current) {
++              AccessibilityInfo.announceForAccessibility(CAMERA_UNAVAILABLE_TEXT);
++            } else {
++              Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
++            }
+           }
+         }
+ 
+@@ -112,7 +126,10 @@ export default function LightDetectionScreen() {
+   if (!permission.granted) {
+     return (
+       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
+-        <Text className="text-2xl font-bold text-foreground text-center mb-4">
++        <Text
++          accessibilityRole="header"
++          className="text-2xl font-bold text-foreground text-center mb-4"
++        >
+           Permissão de Câmera Necessária
+         </Text>
+         <Text className="text-lg text-foreground text-center mb-6">
+@@ -129,6 +146,9 @@ export default function LightDetectionScreen() {
+             pressed && { opacity: 0.8 },
+           ]}
+           className="bg-primary px-8 py-4 rounded-full"
++          accessibilityRole="button"
++          accessibilityLabel="Permitir acesso à câmera"
++          accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
+         >
+           <Text className="text-lg font-bold text-black text-center">
+             Permitir Câmera
+@@ -172,12 +192,18 @@ export default function LightDetectionScreen() {
+         ref={cameraRef}
+         style={styles.camera}
+         facing="back"
++        importantForAccessibility="no"
+         onCameraReady={() => setCameraReady(true)}
+       >
+         {/* Overlay with light indicator */}
+         <View style={styles.overlay}>
+           {/* Light indicator (circle that grows with light) */}
+-          <View style={styles.indicatorContainer}>
++          <View
++            style={styles.indicatorContainer}
++            accessible={false}
++            importantForAccessibility="no-hide-descendants"
++            accessibilityElementsHidden
++          >
+             <View
+               style={[
+                 styles.lightIndicator,
+@@ -190,7 +216,12 @@ export default function LightDetectionScreen() {
+           </View>
+ 
+           {/* Light level text display */}
+-          <View style={styles.lightDisplayContainer}>
++          <View
++            style={styles.lightDisplayContainer}
++            accessible
++            accessibilityRole="text"
++            accessibilityLabel={lightReadingLabel(lightPercentage, cameraFailed)}
++          >
+             <Text style={styles.lightLabel}>
+               {cameraFailed ? CAMERA_UNAVAILABLE_TEXT : 'Intensidade de Luz'}
+             </Text>
+@@ -207,6 +238,10 @@ export default function LightDetectionScreen() {
+             {/* Toggle whistle button */}
+             <Pressable
+               onPress={toggleWhistle}
++              accessibilityRole="switch"
++              accessibilityLabel="Apito de luz"
++              accessibilityHint="Liga ou desliga o som que muda conforme a luz"
++              accessibilityState={{ checked: isWhistleActive }}
+               style={({ pressed }) => [
+                 styles.toggleButton,
+                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+@@ -221,6 +256,9 @@ export default function LightDetectionScreen() {
+             {/* Back button */}
+             <Pressable
+               onPress={handleNavigateToColors}
++              accessibilityRole="button"
++              accessibilityLabel="Voltar"
++              accessibilityHint="Volta para a tela anterior"
+               style={({ pressed }) => [
+                 styles.backButton,
+                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+diff --git a/app/color-detection.tsx b/app/color-detection.tsx
+index e9e205c..6f6ca6a 100644
+--- a/app/color-detection.tsx
++++ b/app/color-detection.tsx
+@@ -1,11 +1,17 @@
+ import React, { useState, useRef, useEffect } from 'react';
+-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
++import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+ import { CameraView, useCameraPermissions } from 'expo-camera';
+ import * as Speech from 'expo-speech';
+ import * as Haptics from 'expo-haptics';
+ import { useRouter } from 'expo-router';
+ import { ScreenContainer } from '@/components/screen-container';
+ import { useColors } from '@/hooks/use-colors';
++import {
++  CAMERA_UNAVAILABLE_NAME,
++  INITIALIZING_COLOR_NAME,
++  colorReadingLabel,
++} from '@/lib/accessibility-labels';
++import { useScreenReaderEnabled } from '@/lib/use-screen-reader';
+ import { detectColorFromImageData } from '@/lib/color-detection';
+ import {
+   createColorStabilizer,
+@@ -35,14 +41,13 @@ interface DetectedColorData {
+ 
+ // Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
+ const MAX_CONSECUTIVE_FAILURES = 5;
+-const CAMERA_UNAVAILABLE_NAME = 'Câmera indisponível';
+ 
+ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+ 
+ export default function ColorDetectionScreen() {
+   const [permission, requestPermission] = useCameraPermissions();
+   const [detectedColor, setDetectedColor] = useState<DetectedColorData>({
+-    name: 'Inicializando...',
++    name: INITIALIZING_COLOR_NAME,
+     hex: '#808080',
+     rgb: { r: 128, g: 128, b: 128 },
+     confidence: 0,
+@@ -52,9 +57,16 @@ export default function ColorDetectionScreen() {
+   // Configurações em refs: o laço de leitura sempre usa o valor mais recente
+   const speechSettingsRef = useRef<SpeechSettings>(DEFAULT_SPEECH_SETTINGS);
+   const calibrationRef = useRef<CalibrationSettings>(DEFAULT_SETTINGS);
++  const screenReaderEnabled = useScreenReaderEnabled();
++  // Em ref: o laço de leitura sempre usa o valor mais recente, sem precisar reiniciar
++  const screenReaderRef = useRef<boolean>(false);
+   const router = useRouter();
+   const colors = useColors();
+ 
++  useEffect(() => {
++    screenReaderRef.current = screenReaderEnabled;
++  }, [screenReaderEnabled]);
++
+   // Carrega as configurações de fala e de calibração
+   useEffect(() => {
+     let active = true;
+@@ -89,6 +101,12 @@ export default function ColorDetectionScreen() {
+     const announce = (text: string) => {
+       const speech = speechSettingsRef.current;
+       if (!speech.enabled) return;
++      // Com leitor de tela ligado (TalkBack/VoiceOver), usa a voz dele: evita duas vozes
++      // falando ao mesmo tempo e respeita a velocidade que a pessoa já ajustou no aparelho.
++      if (screenReaderRef.current) {
++        AccessibilityInfo.announceForAccessibility(text);
++        return;
++      }
+       // Interrompe a fala anterior para a cor nova não ficar para trás
+       Speech.stop();
+       Speech.speak(text, {
+@@ -179,7 +197,10 @@ export default function ColorDetectionScreen() {
+   if (!permission.granted) {
+     return (
+       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
+-        <Text className="text-2xl font-bold text-foreground text-center mb-4">
++        <Text
++          accessibilityRole="header"
++          className="text-2xl font-bold text-foreground text-center mb-4"
++        >
+           Permissão de Câmera Necessária
+         </Text>
+         <Text className="text-lg text-foreground text-center mb-6">
+@@ -196,6 +217,9 @@ export default function ColorDetectionScreen() {
+             pressed && { opacity: 0.8 },
+           ]}
+           className="bg-primary px-8 py-4 rounded-full"
++          accessibilityRole="button"
++          accessibilityLabel="Permitir acesso à câmera"
++          accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
+         >
+           <Text className="text-lg font-bold text-black text-center">
+             Permitir Câmera
+@@ -231,6 +255,7 @@ export default function ColorDetectionScreen() {
+         ref={cameraRef}
+         style={styles.camera}
+         facing="back"
++        importantForAccessibility="no"
+         onCameraReady={() => setCameraReady(true)}
+       >
+         {/* Overlay with reading frame and color display */}
+@@ -238,6 +263,9 @@ export default function ColorDetectionScreen() {
+           {/* Back button - Top left */}
+           <Pressable
+             onPress={handleGoBack}
++            accessibilityRole="button"
++            accessibilityLabel="Voltar"
++            accessibilityHint="Volta para a tela anterior"
+             style={({ pressed }) => [
+               styles.backButton,
+               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+@@ -247,13 +275,23 @@ export default function ColorDetectionScreen() {
+           </Pressable>
+ 
+           {/* Reading frame (center) */}
+-          <View style={styles.readingFrame}>
++          <View
++            style={styles.readingFrame}
++            accessible={false}
++            importantForAccessibility="no-hide-descendants"
++            accessibilityElementsHidden
++          >
+             {/* Color preview circle inside frame */}
+             <View style={[styles.colorPreview, colorPreviewStyle]} />
+           </View>
+ 
+           {/* Color name and confidence display */}
+-          <View style={styles.colorDisplayContainer}>
++          <View
++            style={styles.colorDisplayContainer}
++            accessible
++            accessibilityRole="text"
++            accessibilityLabel={colorReadingLabel(detectedColor.name, detectedColor.confidence)}
++          >
+             <Text style={styles.colorName}>
+               {detectedColor.name}
+             </Text>
+@@ -268,6 +306,9 @@ export default function ColorDetectionScreen() {
+           {/* Light Mode button */}
+           <Pressable
+             onPress={handleNavigateToLightMode}
++            accessibilityRole="button"
++            accessibilityLabel="Abrir detecção de luz"
++            accessibilityHint="Muda para o modo que mede a luz com um apito"
+             style={({ pressed }) => [
+               styles.modeButton,
+               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
+diff --git a/lib/__tests__/accessibility-coverage.test.ts b/lib/__tests__/accessibility-coverage.test.ts
+new file mode 100644
+index 0000000..f83cab7
+--- /dev/null
++++ b/lib/__tests__/accessibility-coverage.test.ts
+@@ -0,0 +1,125 @@
++/**
++ * Garante que as telas continuem acessíveis para leitores de tela (TalkBack/VoiceOver).
++ *
++ * Lê o código-fonte das telas e confere, para cada <Pressable>:
++ *  - tem accessibilityRole (o leitor de tela diz "botão", "interruptor", "opção"...);
++ *  - tem accessibilityLabel (sem ele, um botão só com emoji vira "lâmpada" ou "alto-falante");
++ *  - o rótulo não tem emoji;
++ *  - opções (radio) e interruptores (switch) informam o estado (selecionado/ligado).
++ *
++ * Se alguém criar um botão novo sem esses dados, este teste falha e aponta a linha.
++ */
++
++import { describe, it, expect } from 'vitest';
++import fs from 'node:fs';
++import path from 'node:path';
++import ts from 'typescript';
++
++const ROOT = path.resolve(__dirname, '../..') + path.sep;
++
++const SCREENS = [
++  'app/(tabs)/index.tsx',
++  'app/(tabs)/light-detection.tsx',
++  'app/(tabs)/calibration.tsx',
++  'app/color-detection.tsx',
++];
++
++interface Problem {
++  line: number;
++  message: string;
++}
++
++function auditSource(fileName: string, source: string): { pressables: number; problems: Problem[] } {
++  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
++  const problems: Problem[] = [];
++  let pressables = 0;
++
++  const visit = (node: ts.Node) => {
++    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
++      if (node.tagName.getText(sourceFile) === 'Pressable') {
++        pressables++;
++        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
++        const props = new Map<string, ts.JsxAttribute>();
++        for (const attribute of node.attributes.properties) {
++          if (ts.isJsxAttribute(attribute)) props.set(attribute.name.getText(sourceFile), attribute);
++        }
++
++        const literal = (name: string): string | undefined => {
++          const initializer = props.get(name)?.initializer;
++          return initializer && ts.isStringLiteral(initializer) ? initializer.text : undefined;
++        };
++
++        if (!props.has('accessibilityRole')) {
++          problems.push({ line, message: 'Pressable sem accessibilityRole' });
++        }
++        if (!props.has('accessibilityLabel')) {
++          problems.push({ line, message: 'Pressable sem accessibilityLabel' });
++        }
++
++        const label = literal('accessibilityLabel');
++        if (label !== undefined && /\p{Extended_Pictographic}/u.test(label)) {
++          problems.push({ line, message: `accessibilityLabel com emoji: "${label}"` });
++        }
++
++        const role = literal('accessibilityRole');
++        if ((role === 'radio' || role === 'switch') && !props.has('accessibilityState')) {
++          problems.push({ line, message: `Pressable com papel "${role}" sem accessibilityState` });
++        }
++      }
++    }
++    ts.forEachChild(node, visit);
++  };
++
++  visit(sourceFile);
++  return { pressables, problems };
++}
++
++describe('Acessibilidade das telas', () => {
++  describe('auditoria (o teste de verdade detecta problemas)', () => {
++    it('aponta botão sem papel nem rótulo', () => {
++      const { pressables, problems } = auditSource('x.tsx', '<Pressable onPress={f}><Text>💡</Text></Pressable>');
++      expect(pressables).toBe(1);
++      expect(problems.map((p) => p.message)).toEqual([
++        'Pressable sem accessibilityRole',
++        'Pressable sem accessibilityLabel',
++      ]);
++    });
++
++    it('aponta rótulo com emoji', () => {
++      const { problems } = auditSource(
++        'x.tsx',
++        '<Pressable accessibilityRole="button" accessibilityLabel="🔊 Som" />'
++      );
++      expect(problems).toHaveLength(1);
++      expect(problems[0].message).toContain('emoji');
++    });
++
++    it('aponta radio e switch sem estado', () => {
++      const radio = auditSource('x.tsx', '<Pressable accessibilityRole="radio" accessibilityLabel="A" />');
++      const toggle = auditSource('x.tsx', '<Pressable accessibilityRole="switch" accessibilityLabel="B" />');
++      expect(radio.problems).toHaveLength(1);
++      expect(toggle.problems).toHaveLength(1);
++    });
++
++    it('aceita botão completo', () => {
++      const { problems } = auditSource(
++        'x.tsx',
++        '<Pressable accessibilityRole="switch" accessibilityLabel="Apito" accessibilityState={{ checked: true }} />'
++      );
++      expect(problems).toEqual([]);
++    });
++  });
++
++  describe.each(SCREENS)('%s', (screen) => {
++    const { pressables, problems } = auditSource(screen, fs.readFileSync(ROOT + screen, 'utf-8'));
++
++    it('tem botões para auditar', () => {
++      expect(pressables).toBeGreaterThan(0);
++    });
++
++    it('todos os botões têm papel, rótulo e estado quando necessário', () => {
++      const report = problems.map((p) => `linha ${p.line}: ${p.message}`);
++      expect(report).toEqual([]);
++    });
++  });
++});
+diff --git a/lib/__tests__/accessibility-labels.test.ts b/lib/__tests__/accessibility-labels.test.ts
+new file mode 100644
+index 0000000..50d03a7
+--- /dev/null
++++ b/lib/__tests__/accessibility-labels.test.ts
+@@ -0,0 +1,135 @@
++import { describe, it, expect } from 'vitest';
++import {
++  CAMERA_UNAVAILABLE_NAME,
++  INITIALIZING_COLOR_NAME,
++  colorReadingLabel,
++  describeLightLevel,
++  formatValueForSpeech,
++  lightReadingLabel,
++  optionLabel,
++  presetLabel,
++} from '../accessibility-labels';
++import { UNCERTAIN_COLOR_NAME } from '../color-stabilizer';
++
++describe('formatValueForSpeech', () => {
++  it('escreve porcentagem por extenso', () => {
++    expect(formatValueForSpeech(50, 'percent')).toBe('50 por cento');
++  });
++
++  it('usa singular e plural de pixels', () => {
++    expect(formatValueForSpeech(1, 'pixels')).toBe('1 pixel');
++    expect(formatValueForSpeech(20, 'pixels')).toBe('20 pixels');
++  });
++
++  it('escreve milissegundos por extenso', () => {
++    expect(formatValueForSpeech(500, 'milliseconds')).toBe('500 milissegundos');
++    expect(formatValueForSpeech(1, 'milliseconds')).toBe('1 milissegundo');
++  });
++
++  it('usa vírgula decimal nos multiplicadores', () => {
++    expect(formatValueForSpeech(1.1, 'multiplier')).toBe('1,1 vezes');
++    expect(formatValueForSpeech(0.6, 'multiplier')).toBe('0,6 vezes');
++  });
++
++  it('usa vírgula decimal sem unidade', () => {
++    expect(formatValueForSpeech(1.15, 'none')).toBe('1,15');
++    expect(formatValueForSpeech(1, 'none')).toBe('1');
++  });
++
++  it('nunca devolve ponto decimal nem o símbolo %', () => {
++    for (const unit of ['percent', 'pixels', 'milliseconds', 'multiplier', 'none'] as const) {
++      const text = formatValueForSpeech(1.5, unit);
++      expect(text).not.toContain('.');
++      expect(text).not.toContain('%');
++    }
++  });
++});
++
++describe('optionLabel', () => {
++  it('junta o nome do ajuste e o valor', () => {
++    expect(optionLabel('Sensibilidade de cores', 75, 'percent')).toBe(
++      'Sensibilidade de cores: 75 por cento'
++    );
++    expect(optionLabel('Velocidade da fala', 0.9, 'multiplier')).toBe('Velocidade da fala: 0,9 vezes');
++  });
++});
++
++describe('presetLabel', () => {
++  it('traduz os presets conhecidos, sem emoji', () => {
++    expect(presetLabel('interior')).toBe('Interior');
++    expect(presetLabel('exterior')).toBe('Exterior');
++    expect(presetLabel('low-light')).toBe('Pouca luz');
++  });
++
++  it('devolve a própria chave se o preset for desconhecido', () => {
++    expect(presetLabel('outro')).toBe('outro');
++  });
++});
++
++describe('describeLightLevel', () => {
++  it('cobre toda a faixa de 0 a 100, em ordem crescente', () => {
++    expect(describeLightLevel(0)).toBe('quase sem luz');
++    expect(describeLightLevel(9)).toBe('quase sem luz');
++    expect(describeLightLevel(10)).toBe('pouca luz');
++    expect(describeLightLevel(29)).toBe('pouca luz');
++    expect(describeLightLevel(30)).toBe('luz moderada');
++    expect(describeLightLevel(54)).toBe('luz moderada');
++    expect(describeLightLevel(55)).toBe('bem iluminado');
++    expect(describeLightLevel(79)).toBe('bem iluminado');
++    expect(describeLightLevel(80)).toBe('muito claro');
++    expect(describeLightLevel(100)).toBe('muito claro');
++  });
++
++  it('limita valores fora da faixa e trata valores inválidos', () => {
++    expect(describeLightLevel(-20)).toBe('quase sem luz');
++    expect(describeLightLevel(250)).toBe('muito claro');
++    expect(describeLightLevel(NaN)).toBe('quase sem luz');
++  });
++});
++
++describe('lightReadingLabel', () => {
++  it('descreve o nível com número e palavras', () => {
++    expect(lightReadingLabel(42)).toBe('Intensidade de luz: 42 por cento, luz moderada');
++  });
++
++  it('arredonda valores quebrados', () => {
++    expect(lightReadingLabel(41.6)).toBe('Intensidade de luz: 42 por cento, luz moderada');
++  });
++
++  it('avisa quando a câmera falhou, sem falar um número desatualizado', () => {
++    const label = lightReadingLabel(42, true);
++    expect(label).toContain(CAMERA_UNAVAILABLE_NAME);
++    expect(label).not.toContain('42');
++  });
++});
++
++describe('colorReadingLabel', () => {
++  it('fala o nome da cor e a confiança por extenso', () => {
++    expect(colorReadingLabel('Vermelho', 90)).toBe('Cor detectada: Vermelho. Confiança de 90 por cento');
++  });
++
++  it('descreve o estado de inicialização', () => {
++    expect(colorReadingLabel(INITIALIZING_COLOR_NAME, 0)).toBe('Inicializando a leitura de cores');
++  });
++
++  it('descreve falha de câmera', () => {
++    expect(colorReadingLabel(CAMERA_UNAVAILABLE_NAME, 0)).toContain('Câmera indisponível');
++  });
++
++  it('orienta o usuário quando a cor é incerta', () => {
++    const label = colorReadingLabel(UNCERTAIN_COLOR_NAME, 40);
++    expect(label).toContain('Cor incerta');
++    expect(label).toContain('iluminação');
++  });
++
++  it('nunca contém emoji nem reticências do texto de tela', () => {
++    for (const text of [
++      colorReadingLabel(INITIALIZING_COLOR_NAME, 0),
++      colorReadingLabel('Azul', 77),
++      lightReadingLabel(10),
++    ]) {
++      expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
++      expect(text).not.toContain('...');
++    }
++  });
++});
+diff --git a/lib/accessibility-labels.ts b/lib/accessibility-labels.ts
+new file mode 100644
+index 0000000..413d5fb
+--- /dev/null
++++ b/lib/accessibility-labels.ts
+@@ -0,0 +1,89 @@
++/**
++ * Textos falados pelos leitores de tela (TalkBack no Android, VoiceOver no iOS).
++ *
++ * Funções puras, sem dependência de React Native, para poderem ser testadas.
++ * Regras seguidas:
++ *  - sem emojis (o leitor de tela os lê pelo nome: "lâmpada", "alto-falante"...);
++ *  - números sempre com a unidade por extenso ("50 por cento", não "50%");
++ *  - decimais com vírgula, como se fala em português.
++ */
++
++import { UNCERTAIN_COLOR_NAME } from './color-stabilizer';
++
++/** Texto mostrado enquanto a primeira cor ainda não foi lida. */
++export const INITIALIZING_COLOR_NAME = 'Inicializando...';
++/** Texto mostrado quando a câmera falha várias vezes seguidas. */
++export const CAMERA_UNAVAILABLE_NAME = 'Câmera indisponível';
++
++export type ValueUnit = 'percent' | 'pixels' | 'milliseconds' | 'multiplier' | 'none';
++
++function decimalPtBr(value: number, fractionDigits?: number): string {
++  const text = fractionDigits === undefined ? String(value) : value.toFixed(fractionDigits);
++  return text.replace('.', ',');
++}
++
++/** Escreve um valor com a unidade por extenso, para ser falado. */
++export function formatValueForSpeech(value: number, unit: ValueUnit): string {
++  switch (unit) {
++    case 'percent':
++      return `${decimalPtBr(value)} por cento`;
++    case 'pixels':
++      return value === 1 ? '1 pixel' : `${decimalPtBr(value)} pixels`;
++    case 'milliseconds':
++      return value === 1 ? '1 milissegundo' : `${decimalPtBr(value)} milissegundos`;
++    case 'multiplier':
++      return `${decimalPtBr(value, 1)} vezes`;
++    default:
++      return decimalPtBr(value);
++  }
++}
++
++/** Rótulo de uma opção de ajuste, ex.: "Sensibilidade de cores: 50 por cento". */
++export function optionLabel(setting: string, value: number, unit: ValueUnit): string {
++  return `${setting}: ${formatValueForSpeech(value, unit)}`;
++}
++
++/** Nome falado de cada preset da calibração. */
++const PRESET_LABELS: Record<string, string> = {
++  interior: 'Interior',
++  exterior: 'Exterior',
++  'low-light': 'Pouca luz',
++};
++
++export function presetLabel(presetKey: string): string {
++  return PRESET_LABELS[presetKey] ?? presetKey;
++}
++
++/** Descreve o nível de luz com palavras (mais útil do que só um número). */
++export function describeLightLevel(percent: number): string {
++  const value = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
++  if (value < 10) return 'quase sem luz';
++  if (value < 30) return 'pouca luz';
++  if (value < 55) return 'luz moderada';
++  if (value < 80) return 'bem iluminado';
++  return 'muito claro';
++}
++
++/** Rótulo do painel de luz, ex.: "Intensidade de luz: 42 por cento, luz moderada". */
++export function lightReadingLabel(percent: number, cameraFailed: boolean = false): string {
++  if (cameraFailed) {
++    return `${CAMERA_UNAVAILABLE_NAME}. Não foi possível medir a luz.`;
++  }
++  const rounded = Math.round(Number.isFinite(percent) ? percent : 0);
++  return `Intensidade de luz: ${formatValueForSpeech(rounded, 'percent')}, ${describeLightLevel(rounded)}`;
++}
++
++/** Rótulo do painel de cor, ex.: "Cor detectada: Vermelho. Confiança de 90 por cento". */
++export function colorReadingLabel(name: string, confidence: number): string {
++  if (name === INITIALIZING_COLOR_NAME) {
++    return 'Inicializando a leitura de cores';
++  }
++  if (name === CAMERA_UNAVAILABLE_NAME) {
++    return `${CAMERA_UNAVAILABLE_NAME}. Não foi possível ler as cores.`;
++  }
++  if (name === UNCERTAIN_COLOR_NAME) {
++    return `${UNCERTAIN_COLOR_NAME}. Aproxime a câmera do objeto ou melhore a iluminação.`;
++  }
++  const rounded = Math.round(Number.isFinite(confidence) ? confidence : 0);
++  return `Cor detectada: ${name}. Confiança de ${formatValueForSpeech(rounded, 'percent')}`;
++}
+diff --git a/lib/use-screen-reader.ts b/lib/use-screen-reader.ts
+new file mode 100644
+index 0000000..6b413fe
+--- /dev/null
++++ b/lib/use-screen-reader.ts
+@@ -0,0 +1,31 @@
++import { useEffect, useState } from 'react';
++import { AccessibilityInfo } from 'react-native';
++
++/**
++ * Informa se um leitor de tela (TalkBack/VoiceOver) está ligado, e atualiza
++ * sozinho se a pessoa ligar ou desligar durante o uso do app.
++ */
++export function useScreenReaderEnabled(): boolean {
++  const [enabled, setEnabled] = useState<boolean>(false);
++
++  useEffect(() => {
++    let active = true;
++
++    AccessibilityInfo.isScreenReaderEnabled()
++      .then((value) => {
++        if (active) setEnabled(value);
++      })
++      .catch(() => {
++        // Sem a informação, assumimos que não há leitor de tela
++      });
++
++    const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', setEnabled);
++
++    return () => {
++      active = false;
++      subscription.remove();
++    };
++  }, []);
++
++  return enabled;
++}

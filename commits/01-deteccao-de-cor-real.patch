@@ -1,0 +1,839 @@
+diff --git a/app/color-detection.tsx b/app/color-detection.tsx
+index 0b20b1e..e9e205c 100644
+--- a/app/color-detection.tsx
++++ b/app/color-detection.tsx
+@@ -7,7 +7,24 @@ import { useRouter } from 'expo-router';
+ import { ScreenContainer } from '@/components/screen-container';
+ import { useColors } from '@/hooks/use-colors';
+ import { detectColorFromImageData } from '@/lib/color-detection';
+-import { loadSpeechSettings, type SpeechSettings } from '@/lib/speech-settings';
++import {
++  createColorStabilizer,
++  framesFromSensitivity,
++  isConfidentEnough,
++  UNCERTAIN_COLOR_NAME,
++} from '@/lib/color-stabilizer';
++import { captureSample } from '@/lib/frame-capture';
++import { regionRadiusFromSetting } from '@/lib/frame-sampling';
++import {
++  DEFAULT_SETTINGS,
++  loadCalibrationSettings,
++  type CalibrationSettings,
++} from '@/lib/calibration-settings';
++import {
++  DEFAULT_SPEECH_SETTINGS,
++  loadSpeechSettings,
++  type SpeechSettings,
++} from '@/lib/speech-settings';
+ 
+ interface DetectedColorData {
+   name: string;
+@@ -16,6 +33,12 @@ interface DetectedColorData {
+   confidence: number;
+ }
+ 
++// Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
++const MAX_CONSECUTIVE_FAILURES = 5;
++const CAMERA_UNAVAILABLE_NAME = 'Câmera indisponível';
++
++const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
++
+ export default function ColorDetectionScreen() {
+   const [permission, requestPermission] = useCameraPermissions();
+   const [detectedColor, setDetectedColor] = useState<DetectedColorData>({
+@@ -24,125 +47,130 @@ export default function ColorDetectionScreen() {
+     rgb: { r: 128, g: 128, b: 128 },
+     confidence: 0,
+   });
+-  const [lastSpokenColor, setLastSpokenColor] = useState<string>('');
+-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+-  const [speechSettings, setSpeechSettings] = useState<SpeechSettings>({
+-    rate: 0.9,
+-    pitch: 1.0,
+-    volume: 1.0,
+-    enabled: true,
+-  });
++  const [cameraReady, setCameraReady] = useState<boolean>(false);
+   const cameraRef = useRef<CameraView>(null);
+-  const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
++  // Configurações em refs: o laço de leitura sempre usa o valor mais recente
++  const speechSettingsRef = useRef<SpeechSettings>(DEFAULT_SPEECH_SETTINGS);
++  const calibrationRef = useRef<CalibrationSettings>(DEFAULT_SETTINGS);
+   const router = useRouter();
+   const colors = useColors();
+ 
+-  // Load speech settings on component mount
++  // Carrega as configurações de fala e de calibração
+   useEffect(() => {
++    let active = true;
+     const loadSettings = async () => {
+-      const settings = await loadSpeechSettings();
+-      setSpeechSettings(settings);
++      const [speech, calibration] = await Promise.all([
++        loadSpeechSettings(),
++        loadCalibrationSettings(),
++      ]);
++      if (active) {
++        speechSettingsRef.current = speech;
++        calibrationRef.current = calibration;
++      }
+     };
+     loadSettings();
++    return () => {
++      active = false;
++    };
+   }, []);
+ 
+-  // Announce color change with speech using loaded settings
++  // Laço de leitura: tira uma amostra, descobre a cor, confirma e fala.
++  // Uma leitura só começa depois que a anterior terminou (nunca se sobrepõem).
+   useEffect(() => {
+-    if (detectedColor.name !== lastSpokenColor && detectedColor.name !== 'Inicializando...') {
+-      setLastSpokenColor(detectedColor.name);
++    if (!permission?.granted || !cameraReady) return;
+ 
+-      // Only speak if speech is enabled
+-      if (speechSettings.enabled) {
+-        // Check if speech is already in progress
+-        Speech.isSpeakingAsync().then((isSpeaking: boolean) => {
+-          if (!isSpeaking) {
+-            Speech.speak(detectedColor.name, {
+-              language: 'pt-BR',
+-              pitch: speechSettings.pitch,
+-              rate: speechSettings.rate,
+-              volume: speechSettings.volume,
+-            });
+-          }
+-        });
+-      }
+-    }
+-  }, [detectedColor, lastSpokenColor, speechSettings]);
++    let cancelled = false;
++    const stabilizer = createColorStabilizer(
++      framesFromSensitivity(calibrationRef.current.colorSensitivity)
++    );
++    let failures = 0;
++    let failureAnnounced = false;
+ 
++    const announce = (text: string) => {
++      const speech = speechSettingsRef.current;
++      if (!speech.enabled) return;
++      // Interrompe a fala anterior para a cor nova não ficar para trás
++      Speech.stop();
++      Speech.speak(text, {
++        language: 'pt-BR',
++        pitch: speech.pitch,
++        rate: speech.rate,
++        volume: speech.volume,
++      });
++    };
+ 
++    const run = async () => {
++      while (!cancelled) {
++        const startedAt = Date.now();
++        const calibration = calibrationRef.current;
+ 
+-  // Start color detection when camera is ready
+-  useEffect(() => {
+-    if (permission?.granted && cameraRef.current) {
+-      // Start processing frames
+-      const startProcessing = async () => {
+-        setIsProcessing(true);
+-        
+-        // Process frames every 500ms
+-        processingIntervalRef.current = setInterval(async () => {
+-          try {
+-            // Take a photo to analyze
+-            const photo = await cameraRef.current?.takePictureAsync({
+-              quality: 0.5,
+-              base64: true,
+-              skipProcessing: false,
+-            });
++        try {
++          const camera = cameraRef.current;
++          if (!camera) throw new Error('A câmera ainda não está disponível.');
+ 
+-            if (photo?.base64) {
+-              // Convert base64 to image data
+-              const binaryString = atob(photo.base64);
+-              const bytes = new Uint8Array(binaryString.length);
+-              for (let i = 0; i < binaryString.length; i++) {
+-                bytes[i] = binaryString.charCodeAt(i);
+-              }
++          const sample = await captureSample(camera);
++          if (cancelled) return;
+ 
+-              // For web/simulation: create a simple color detection
+-              // In real implementation, would use proper image processing
+-              if (Platform.OS === 'web') {
+-                // Simulate color detection on web
+-                const simulatedColors = [
+-                  { name: 'Vermelho', hex: '#FF0000', rgb: { r: 255, g: 0, b: 0 }, confidence: 85 },
+-                  { name: 'Verde', hex: '#00CC00', rgb: { r: 0, g: 204, b: 0 }, confidence: 82 },
+-                  { name: 'Azul', hex: '#0066FF', rgb: { r: 0, g: 102, b: 255 }, confidence: 88 },
+-                  { name: 'Amarelo', hex: '#FFFF00', rgb: { r: 255, g: 255, b: 0 }, confidence: 90 },
+-                  { name: 'Branco', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 }, confidence: 92 },
+-                  { name: 'Preto', hex: '#000000', rgb: { r: 0, g: 0, b: 0 }, confidence: 89 },
+-                  { name: 'Laranja', hex: '#FFA500', rgb: { r: 255, g: 165, b: 0 }, confidence: 86 },
+-                  { name: 'Roxo', hex: '#800080', rgb: { r: 128, g: 0, b: 128 }, confidence: 84 },
+-                ];
+-                
+-                const randomColor = simulatedColors[Math.floor(Math.random() * simulatedColors.length)];
+-                setDetectedColor(randomColor);
+-              } else {
+-                // On native platforms, use the actual image processing
+-                // This would require proper image data extraction from the photo
+-                // For now, we'll use a simulated approach
+-                const simulatedColors = [
+-                  { name: 'Vermelho', hex: '#FF0000', rgb: { r: 255, g: 0, b: 0 }, confidence: 85 },
+-                  { name: 'Verde', hex: '#00CC00', rgb: { r: 0, g: 204, b: 0 }, confidence: 82 },
+-                  { name: 'Azul', hex: '#0066FF', rgb: { r: 0, g: 102, b: 255 }, confidence: 88 },
+-                  { name: 'Amarelo', hex: '#FFFF00', rgb: { r: 255, g: 255, b: 0 }, confidence: 90 },
+-                ];
+-                
+-                const randomColor = simulatedColors[Math.floor(Math.random() * simulatedColors.length)];
+-                setDetectedColor(randomColor);
+-              }
+-            }
+-          } catch (error) {
+-            console.error('Error processing frame:', error);
+-          }
+-        }, 500);
+-      };
++          failures = 0;
++          failureAnnounced = false;
++
++          const radius = regionRadiusFromSetting(
++            calibration.regionSize,
++            sample.width,
++            sample.height
++          );
++          const reading = detectColorFromImageData(
++            sample.data,
++            sample.width,
++            sample.height,
++            undefined,
++            undefined,
++            radius
++          );
+ 
+-      startProcessing();
++          const uncertain = !isConfidentEnough(reading.confidence, calibration.minConfidence);
++          const name = uncertain ? UNCERTAIN_COLOR_NAME : reading.name;
+ 
+-      return () => {
+-        if (processingIntervalRef.current) {
+-          clearInterval(processingIntervalRef.current);
++          stabilizer.setRequiredFrames(framesFromSensitivity(calibration.colorSensitivity));
++          const confirmed = stabilizer.push(name);
++          if (confirmed) {
++            setDetectedColor({
++              name: confirmed,
++              hex: reading.hex,
++              rgb: reading.rgb,
++              confidence: reading.confidence,
++            });
++            announce(confirmed);
++          }
++        } catch (error) {
++          if (cancelled) return;
++          failures++;
++          console.warn('Erro ao ler a cor:', error);
++          if (failures >= MAX_CONSECUTIVE_FAILURES && !failureAnnounced) {
++            failureAnnounced = true;
++            stabilizer.reset();
++            setDetectedColor({
++              name: CAMERA_UNAVAILABLE_NAME,
++              hex: '#808080',
++              rgb: { r: 128, g: 128, b: 128 },
++              confidence: 0,
++            });
++            announce(CAMERA_UNAVAILABLE_NAME);
++          }
+         }
+-        setIsProcessing(false);
+-      };
+-    }
+-  }, [permission?.granted]);
++
++        const elapsed = Date.now() - startedAt;
++        await sleep(Math.max(50, calibration.updateFrequency - elapsed));
++      }
++    };
++
++    run();
++
++    return () => {
++      cancelled = true;
++      Speech.stop();
++    };
++  }, [permission?.granted, cameraReady]);
+ 
+   if (!permission) {
+     return <View />;
+@@ -203,6 +231,7 @@ export default function ColorDetectionScreen() {
+         ref={cameraRef}
+         style={styles.camera}
+         facing="back"
++        onCameraReady={() => setCameraReady(true)}
+       >
+         {/* Overlay with reading frame and color display */}
+         <View style={styles.overlay}>
+diff --git a/lib/__tests__/color-detection.test.ts b/lib/__tests__/color-detection.test.ts
+index 94c4987..a753ce5 100644
+--- a/lib/__tests__/color-detection.test.ts
++++ b/lib/__tests__/color-detection.test.ts
+@@ -267,3 +267,62 @@ describe('Color Detection', () => {
+     });
+   });
+ });
++
++describe('Color Detection - amostra reduzida e região', () => {
++  function imageWithCenter(
++    size: number,
++    background: [number, number, number],
++    center: [number, number, number],
++    centerHalfSize: number
++  ): Uint8ClampedArray {
++    const data = new Uint8ClampedArray(size * size * 4);
++    const mid = Math.floor(size / 2);
++    for (let y = 0; y < size; y++) {
++      for (let x = 0; x < size; x++) {
++        const inCenter = Math.abs(x - mid) < centerHalfSize && Math.abs(y - mid) < centerHalfSize;
++        const [r, g, b] = inCenter ? center : background;
++        const index = (y * size + x) * 4;
++        data[index] = r;
++        data[index + 1] = g;
++        data[index + 2] = b;
++        data[index + 3] = 255;
++      }
++    }
++    return data;
++  }
++
++  it('should name #595959 as Cinza Escuro and keep it darker than Cinza', () => {
++    const dark = detectColorFromImageData(imageWithCenter(32, [89, 89, 89], [89, 89, 89], 4), 32, 32);
++    const gray = detectColorFromImageData(imageWithCenter(32, [128, 128, 128], [128, 128, 128], 4), 32, 32);
++    expect(dark.name).toBe('Cinza Escuro');
++    expect(gray.name).toBe('Cinza');
++    expect(dark.rgb.r).toBeLessThan(gray.rgb.r);
++  });
++
++  it('should not report the old light gray (#A9A9A9) as Cinza Escuro', () => {
++    const result = detectColorFromImageData(imageWithCenter(32, [169, 169, 169], [169, 169, 169], 4), 32, 32);
++    expect(result.name).not.toBe('Cinza Escuro');
++  });
++
++  it('should read only the center when the region radius is small', () => {
++    // Fundo preto com um quadrado vermelho no centro
++    const image = imageWithCenter(40, [0, 0, 0], [255, 0, 0], 4);
++    const result = detectColorFromImageData(image, 40, 40, undefined, undefined, 3);
++    expect(result.rgb).toEqual({ r: 255, g: 0, b: 0 });
++    expect(result.name).toBe('Vermelho');
++  });
++
++  it('should mix in the background when the region radius is large', () => {
++    const image = imageWithCenter(40, [0, 0, 0], [255, 0, 0], 4);
++    const small = detectColorFromImageData(image, 40, 40, undefined, undefined, 3);
++    const large = detectColorFromImageData(image, 40, 40, undefined, undefined, 20);
++    expect(large.rgb.r).toBeLessThan(small.rgb.r);
++  });
++
++  it('should keep the default region radius of 15 when none is given', () => {
++    const image = imageWithCenter(40, [0, 0, 0], [255, 0, 0], 4);
++    const implicit = detectColorFromImageData(image, 40, 40);
++    const explicit = detectColorFromImageData(image, 40, 40, undefined, undefined, 15);
++    expect(implicit).toEqual(explicit);
++  });
++});
+diff --git a/lib/__tests__/color-stabilizer.test.ts b/lib/__tests__/color-stabilizer.test.ts
+new file mode 100644
+index 0000000..50af7a0
+--- /dev/null
++++ b/lib/__tests__/color-stabilizer.test.ts
+@@ -0,0 +1,109 @@
++import { describe, it, expect } from 'vitest';
++import {
++  UNCERTAIN_COLOR_NAME,
++  createColorStabilizer,
++  framesFromSensitivity,
++  isConfidentEnough,
++} from '../color-stabilizer';
++
++describe('Color Stabilizer', () => {
++  describe('framesFromSensitivity', () => {
++    it('should confirm with 1 reading at sensitivity 70 or more', () => {
++      expect(framesFromSensitivity(70)).toBe(1);
++      expect(framesFromSensitivity(100)).toBe(1);
++    });
++
++    it('should confirm with 2 readings between 40 and 69', () => {
++      expect(framesFromSensitivity(40)).toBe(2);
++      expect(framesFromSensitivity(50)).toBe(2);
++      expect(framesFromSensitivity(69)).toBe(2);
++    });
++
++    it('should confirm with 3 readings below 40', () => {
++      expect(framesFromSensitivity(39)).toBe(3);
++      expect(framesFromSensitivity(0)).toBe(3);
++    });
++  });
++
++  describe('isConfidentEnough', () => {
++    it('should accept confidence equal to or above the minimum', () => {
++      expect(isConfidentEnough(70, 70)).toBe(true);
++      expect(isConfidentEnough(95, 70)).toBe(true);
++    });
++
++    it('should reject confidence below the minimum', () => {
++      expect(isConfidentEnough(69, 70)).toBe(false);
++    });
++  });
++
++  describe('createColorStabilizer', () => {
++    it('should confirm a color only after the required readings in a row', () => {
++      const stabilizer = createColorStabilizer(2);
++      expect(stabilizer.push('Verde')).toBeNull();
++      expect(stabilizer.push('Verde')).toBe('Verde');
++    });
++
++    it('should confirm immediately when 1 reading is required', () => {
++      const stabilizer = createColorStabilizer(1);
++      expect(stabilizer.push('Azul')).toBe('Azul');
++    });
++
++    it('should not confirm an unstable color', () => {
++      const stabilizer = createColorStabilizer(2);
++      expect(stabilizer.push('Verde')).toBeNull();
++      expect(stabilizer.push('Verde Claro')).toBeNull();
++      expect(stabilizer.push('Verde')).toBeNull();
++      expect(stabilizer.push('Verde Claro')).toBeNull();
++    });
++
++    it('should not announce the same color twice in a row', () => {
++      const stabilizer = createColorStabilizer(2);
++      stabilizer.push('Verde');
++      expect(stabilizer.push('Verde')).toBe('Verde');
++      expect(stabilizer.push('Verde')).toBeNull();
++      expect(stabilizer.push('Verde')).toBeNull();
++    });
++
++    it('should announce a color again after a different one was confirmed', () => {
++      const stabilizer = createColorStabilizer(2);
++      stabilizer.push('Verde');
++      stabilizer.push('Verde');
++      stabilizer.push('Azul');
++      expect(stabilizer.push('Azul')).toBe('Azul');
++      stabilizer.push('Verde');
++      expect(stabilizer.push('Verde')).toBe('Verde');
++    });
++
++    it('should not re-announce after a brief flicker to another color', () => {
++      const stabilizer = createColorStabilizer(2);
++      stabilizer.push('Verde');
++      stabilizer.push('Verde');
++      stabilizer.push('Azul'); // uma leitura isolada
++      expect(stabilizer.push('Verde')).toBeNull();
++    });
++
++    it('should handle the uncertain state like any other name', () => {
++      const stabilizer = createColorStabilizer(2);
++      stabilizer.push(UNCERTAIN_COLOR_NAME);
++      expect(stabilizer.push(UNCERTAIN_COLOR_NAME)).toBe(UNCERTAIN_COLOR_NAME);
++    });
++
++    it('should allow changing the required readings', () => {
++      const stabilizer = createColorStabilizer(3);
++      stabilizer.setRequiredFrames(1);
++      expect(stabilizer.push('Roxo')).toBe('Roxo');
++    });
++
++    it('should announce the same color again after reset', () => {
++      const stabilizer = createColorStabilizer(1);
++      expect(stabilizer.push('Verde')).toBe('Verde');
++      stabilizer.reset();
++      expect(stabilizer.push('Verde')).toBe('Verde');
++    });
++
++    it('should treat invalid frame counts as 1', () => {
++      const stabilizer = createColorStabilizer(0);
++      expect(stabilizer.push('Verde')).toBe('Verde');
++    });
++  });
++});
+diff --git a/lib/__tests__/frame-sampling.test.ts b/lib/__tests__/frame-sampling.test.ts
+new file mode 100644
+index 0000000..7c2f478
+--- /dev/null
++++ b/lib/__tests__/frame-sampling.test.ts
+@@ -0,0 +1,67 @@
++import { describe, it, expect } from 'vitest';
++import {
++  SAMPLE_WIDTH,
++  base64ToBytes,
++  regionRadiusFromSetting,
++} from '../frame-sampling';
++
++describe('Frame Sampling', () => {
++  describe('base64ToBytes', () => {
++    it('should decode a known string', () => {
++      const bytes = base64ToBytes('SGVsbG8=');
++      expect(Array.from(bytes)).toEqual([72, 101, 108, 108, 111]); // "Hello"
++    });
++
++    it('should decode without padding', () => {
++      const bytes = base64ToBytes('SGVsbG8');
++      expect(Array.from(bytes)).toEqual([72, 101, 108, 108, 111]);
++    });
++
++    it('should ignore the data URL prefix', () => {
++      const bytes = base64ToBytes('data:image/jpeg;base64,SGk=');
++      expect(Array.from(bytes)).toEqual([72, 105]); // "Hi"
++    });
++
++    it('should ignore whitespace and line breaks', () => {
++      const bytes = base64ToBytes('SGVs\nbG8=  ');
++      expect(Array.from(bytes)).toEqual([72, 101, 108, 108, 111]);
++    });
++
++    it('should return an empty array for an empty string', () => {
++      expect(base64ToBytes('')).toHaveLength(0);
++    });
++
++    it('should match Node Buffer for all byte values', () => {
++      const original = new Uint8Array(256);
++      for (let i = 0; i < 256; i++) original[i] = i;
++      const encoded = Buffer.from(original).toString('base64');
++      expect(Array.from(base64ToBytes(encoded))).toEqual(Array.from(original));
++    });
++  });
++
++  describe('regionRadiusFromSetting', () => {
++    it('should use the percentage of the shorter side', () => {
++      // Padrão 20% de 48 px = ~10 px de raio
++      expect(regionRadiusFromSetting(20, SAMPLE_WIDTH, 48)).toBe(10);
++    });
++
++    it('should use the shorter side for portrait images', () => {
++      expect(regionRadiusFromSetting(20, 64, 85)).toBe(13);
++    });
++
++    it('should grow with the setting', () => {
++      const small = regionRadiusFromSetting(10, 64, 48);
++      const large = regionRadiusFromSetting(40, 64, 48);
++      expect(large).toBeGreaterThan(small);
++    });
++
++    it('should clamp settings outside 5-50', () => {
++      expect(regionRadiusFromSetting(0, 64, 48)).toBe(regionRadiusFromSetting(5, 64, 48));
++      expect(regionRadiusFromSetting(500, 64, 48)).toBe(regionRadiusFromSetting(50, 64, 48));
++    });
++
++    it('should never return less than 1 pixel', () => {
++      expect(regionRadiusFromSetting(5, 8, 8)).toBeGreaterThanOrEqual(1);
++    });
++  });
++});
+diff --git a/lib/color-detection.ts b/lib/color-detection.ts
+index 35d27b4..8796a77 100644
+--- a/lib/color-detection.ts
++++ b/lib/color-detection.ts
+@@ -82,7 +82,8 @@ const COLOR_DATABASE: Array<{
+   // Grays
+   { name: 'Cinza', hex: '#808080', rgb: { r: 128, g: 128, b: 128 } },
+   { name: 'Cinza Claro', hex: '#D3D3D3', rgb: { r: 211, g: 211, b: 211 } },
+-  { name: 'Cinza Escuro', hex: '#A9A9A9', rgb: { r: 169, g: 169, b: 169 } },
++  // Antes era #A9A9A9 (mais claro que o "Cinza" #808080, pegadinha do CSS)
++  { name: 'Cinza Escuro', hex: '#595959', rgb: { r: 89, g: 89, b: 89 } },
+   { name: 'Preto', hex: '#000000', rgb: { r: 0, g: 0, b: 0 } },
+   { name: 'Branco', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 } },
+ ];
+@@ -238,6 +239,7 @@ function averagePixelsInRegion(
+  * @param height - Image height
+  * @param centerX - X coordinate of center point (default: center of image)
+  * @param centerY - Y coordinate of center point (default: center of image)
++ * @param regionRadius - Half-size of the averaged square, in pixels (default: 15)
+  * @returns Color data with name, hex, RGB, HSL, and confidence
+  */
+ export function detectColorFromImageData(
+@@ -245,14 +247,15 @@ export function detectColorFromImageData(
+   width: number,
+   height: number,
+   centerX?: number,
+-  centerY?: number
++  centerY?: number,
++  regionRadius: number = 15
+ ): ColorData {
+   // Use image center if coordinates not provided
+   const x = centerX ?? Math.floor(width / 2);
+   const y = centerY ?? Math.floor(height / 2);
+ 
+   // Average pixels in a region for more stable detection
+-  const avgPixel = averagePixelsInRegion(imageData, x, y, width, height, 15);
++  const avgPixel = averagePixelsInRegion(imageData, x, y, width, height, Math.max(1, regionRadius));
+ 
+   // Find closest color name
+   const closest = findClosestColor(avgPixel);
+diff --git a/lib/color-stabilizer.ts b/lib/color-stabilizer.ts
+new file mode 100644
+index 0000000..f1d83fa
+--- /dev/null
++++ b/lib/color-stabilizer.ts
+@@ -0,0 +1,72 @@
++/**
++ * Color Stabilizer
++ *
++ * Evita que o app fique falando "Verde, Verde Claro, Verde..." quando a leitura
++ * oscila entre cores parecidas. Um nome só é confirmado depois de aparecer
++ * N vezes seguidas e só é confirmado de novo se for diferente do último.
++ */
++
++/** Texto exibido e falado quando a confiança da leitura é menor que a mínima. */
++export const UNCERTAIN_COLOR_NAME = 'Cor incerta';
++
++/**
++ * Quantas leituras iguais seguidas confirmam uma cor, a partir da
++ * "sensibilidade" da calibração (0-100).
++ * 70 ou mais: 1 leitura. 40 ou mais: 2 leituras. Menos que isso: 3 leituras.
++ */
++export function framesFromSensitivity(sensitivity: number): number {
++  if (sensitivity >= 70) return 1;
++  if (sensitivity >= 40) return 2;
++  return 3;
++}
++
++/** Retorna true se a leitura tem confiança suficiente para ser nomeada. */
++export function isConfidentEnough(confidence: number, minConfidence: number): boolean {
++  return confidence >= minConfidence;
++}
++
++export interface ColorStabilizer {
++  /**
++   * Registra uma leitura. Retorna o nome quando ele acaba de ser confirmado
++   * (novo e estável), ou null caso contrário.
++   */
++  push(name: string): string | null;
++  /** Atualiza quantas leituras seguidas são necessárias. */
++  setRequiredFrames(frames: number): void;
++  /** Esquece o histórico (a próxima cor estável será confirmada de novo). */
++  reset(): void;
++}
++
++export function createColorStabilizer(requiredFrames: number = 2): ColorStabilizer {
++  let required = Math.max(1, Math.floor(requiredFrames));
++  let candidate: string | null = null;
++  let streak = 0;
++  let confirmed: string | null = null;
++
++  return {
++    push(name: string): string | null {
++      if (name === candidate) {
++        streak++;
++      } else {
++        candidate = name;
++        streak = 1;
++      }
++
++      if (streak >= required && name !== confirmed) {
++        confirmed = name;
++        return name;
++      }
++      return null;
++    },
++
++    setRequiredFrames(frames: number): void {
++      required = Math.max(1, Math.floor(frames));
++    },
++
++    reset(): void {
++      candidate = null;
++      streak = 0;
++      confirmed = null;
++    },
++  };
++}
+diff --git a/lib/frame-capture.ts b/lib/frame-capture.ts
+new file mode 100644
+index 0000000..5bed3da
+--- /dev/null
++++ b/lib/frame-capture.ts
+@@ -0,0 +1,61 @@
++/**
++ * Captura uma amostra da câmera: tira a foto (sem som de obturador), reduz no
++ * código nativo para ~64 px de largura e decodifica só essa amostra pequena.
++ * Assim nunca decodificamos em JavaScript uma foto de vários megapixels.
++ *
++ * Os arquivos temporários são apagados a cada captura.
++ */
++
++import type { CameraView } from 'expo-camera';
++import * as FileSystem from 'expo-file-system/legacy';
++import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
++
++import { SAMPLE_WIDTH } from './frame-sampling';
++import { decodeJpegBase64, type DecodedFrame } from './jpeg-decode';
++
++/** Amostra reduzida da câmera, já decodificada em pixels RGBA. */
++export type CapturedSample = DecodedFrame;
++
++async function removeTemporaryFile(uri: string | undefined): Promise<void> {
++  // Na web a "uri" é um data URL, não há arquivo para apagar
++  if (!uri || !uri.startsWith('file:')) return;
++  try {
++    await FileSystem.deleteAsync(uri, { idempotent: true });
++  } catch {
++    // Arquivo temporário: se não der para apagar, o sistema limpa o cache depois
++  }
++}
++
++export async function captureSample(camera: CameraView): Promise<CapturedSample> {
++  let photoUri: string | undefined;
++  let sampleUri: string | undefined;
++
++  try {
++    const photo = await camera.takePictureAsync({
++      quality: 0.3,
++      skipProcessing: true, // mais rápido; a orientação não importa para o centro da imagem
++      shutterSound: false,
++      exif: false,
++      base64: false,
++    });
++    if (!photo) {
++      throw new Error('A câmera não devolveu a foto.');
++    }
++    photoUri = photo.uri;
++
++    const context = ImageManipulator.manipulate(photo.uri);
++    context.resize({ width: SAMPLE_WIDTH });
++    const image = await context.renderAsync();
++    const sample = await image.saveAsync({ base64: true, format: SaveFormat.JPEG, compress: 0.9 });
++    sampleUri = sample.uri;
++
++    if (!sample.base64) {
++      throw new Error('A amostra reduzida veio sem dados.');
++    }
++
++    return decodeJpegBase64(sample.base64);
++  } finally {
++    await removeTemporaryFile(photoUri);
++    await removeTemporaryFile(sampleUri);
++  }
++}
+diff --git a/lib/frame-sampling.ts b/lib/frame-sampling.ts
+new file mode 100644
+index 0000000..c75d463
+--- /dev/null
++++ b/lib/frame-sampling.ts
+@@ -0,0 +1,73 @@
++/**
++ * Frame Sampling Utilities (funções puras, sem dependência de React Native)
++ *
++ * A câmera entrega uma foto JPEG grande. Em vez de decodificar a foto inteira
++ * em JavaScript, o app reduz a imagem no código nativo para ~64 px de largura
++ * e só então decodifica esta amostra pequena. As funções abaixo trabalham com
++ * essa amostra.
++ */
++
++/** Largura (em pixels) da amostra reduzida que é decodificada em JavaScript. */
++export const SAMPLE_WIDTH = 64;
++
++const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
++
++const BASE64_LOOKUP: Record<string, number> = (() => {
++  const table: Record<string, number> = {};
++  for (let i = 0; i < BASE64_ALPHABET.length; i++) {
++    table[BASE64_ALPHABET[i]] = i;
++  }
++  // Variante URL-safe, por garantia
++  table['-'] = 62;
++  table['_'] = 63;
++  return table;
++})();
++
++/**
++ * Converte base64 em bytes sem depender de Buffer ou atob
++ * (o React Native não tem Buffer; o atob só existe em versões recentes).
++ * Ignora espaços, quebras de linha e o prefixo "data:...;base64,".
++ */
++export function base64ToBytes(base64: string): Uint8Array {
++  const commaIndex = base64.indexOf(',');
++  const payload = base64.startsWith('data:') && commaIndex >= 0 ? base64.slice(commaIndex + 1) : base64;
++
++  const values: number[] = [];
++  for (let i = 0; i < payload.length; i++) {
++    const char = payload[i];
++    if (char === '=') break;
++    const value = BASE64_LOOKUP[char];
++    if (value !== undefined) {
++      values.push(value);
++    }
++  }
++
++  const bytes = new Uint8Array(Math.floor((values.length * 6) / 8));
++  let buffer = 0;
++  let bits = 0;
++  let out = 0;
++  for (let i = 0; i < values.length; i++) {
++    buffer = (buffer << 6) | values[i];
++    bits += 6;
++    if (bits >= 8) {
++      bits -= 8;
++      bytes[out++] = (buffer >> bits) & 0xff;
++      buffer &= (1 << bits) - 1;
++    }
++  }
++  return bytes;
++}
++
++/**
++ * Converte o "tamanho da região" da calibração (5-50) no raio, em pixels,
++ * da região média na amostra reduzida.
++ *
++ * Interpretação: regionSize é a metade do lado do quadrado central, em % do
++ * lado menor da imagem. Com o padrão 20, o quadrado lido tem 40% do lado
++ * menor, parecido com o tamanho da moldura na tela. Com 50, lê a imagem toda.
++ */
++export function regionRadiusFromSetting(regionSize: number, width: number, height: number): number {
++  const clampedSize = Math.max(5, Math.min(50, regionSize));
++  const shortSide = Math.min(width, height);
++  return Math.max(1, Math.round((shortSide * clampedSize) / 100));
++}
+diff --git a/lib/jpeg-decode.ts b/lib/jpeg-decode.ts
+new file mode 100644
+index 0000000..da6f2a3
+--- /dev/null
++++ b/lib/jpeg-decode.ts
+@@ -0,0 +1,33 @@
++/**
++ * Decodifica a pequena amostra JPEG (em base64) em pixels RGBA.
++ * Fica separado de frame-sampling.ts para que as funções puras continuem
++ * testáveis sem o jpeg-js.
++ */
++
++import { decode } from 'jpeg-js';
++
++import { base64ToBytes } from './frame-sampling';
++
++export interface DecodedFrame {
++  /** Pixels em RGBA (4 bytes por pixel). */
++  data: Uint8ClampedArray;
++  width: number;
++  height: number;
++}
++
++export function decodeJpegBase64(base64: string): DecodedFrame {
++  const bytes = base64ToBytes(base64);
++
++  // useTArray: o React Native não tem Buffer, então pedimos Uint8Array
++  const decoded = decode(bytes, {
++    useTArray: true,
++    formatAsRGBA: true,
++    maxResolutionInMP: 4,
++  }) as unknown as { width: number; height: number; data: Uint8Array };
++
++  return {
++    data: Uint8ClampedArray.from(decoded.data),
++    width: decoded.width,
++    height: decoded.height,
++  };
++}
