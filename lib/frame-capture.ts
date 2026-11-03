@@ -13,8 +13,15 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { SAMPLE_WIDTH } from './frame-sampling';
 import { decodeJpegBase64, type DecodedFrame } from './jpeg-decode';
 
-/** Amostra reduzida da câmera, já decodificada em pixels RGBA. */
-export type CapturedSample = DecodedFrame;
+export interface CapturedSample extends DecodedFrame {
+  /** EXIF da foto original (só quando includeExif é true e o aparelho fornece). */
+  exif?: unknown;
+}
+
+export interface CaptureOptions {
+  /** Pede o EXIF da foto (usado pela detecção de luz). */
+  includeExif?: boolean;
+}
 
 async function removeTemporaryFile(uri: string | undefined): Promise<void> {
   // Na web a "uri" é um data URL, não há arquivo para apagar
@@ -26,7 +33,10 @@ async function removeTemporaryFile(uri: string | undefined): Promise<void> {
   }
 }
 
-export async function captureSample(camera: CameraView): Promise<CapturedSample> {
+export async function captureSample(
+  camera: CameraView,
+  options: CaptureOptions = {}
+): Promise<CapturedSample> {
   let photoUri: string | undefined;
   let sampleUri: string | undefined;
 
@@ -35,7 +45,7 @@ export async function captureSample(camera: CameraView): Promise<CapturedSample>
       quality: 0.3,
       skipProcessing: true, // mais rápido; a orientação não importa para o centro da imagem
       shutterSound: false,
-      exif: false,
+      exif: options.includeExif === true,
       base64: false,
     });
     if (!photo) {
@@ -53,7 +63,7 @@ export async function captureSample(camera: CameraView): Promise<CapturedSample>
       throw new Error('A amostra reduzida veio sem dados.');
     }
 
-    return decodeJpegBase64(sample.base64);
+    return { ...decodeJpegBase64(sample.base64), exif: photo.exif };
   } finally {
     await removeTemporaryFile(photoUri);
     await removeTemporaryFile(sampleUri);

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { lightPercentageToFrequency } from '../audio-synthesis';
+import {
+  cleanup,
+  isAudioPlaying,
+  lightPercentageToFrequency,
+  playLightDetectionWhistle,
+  startWhistle,
+  stopWhistle,
+} from '../audio-synthesis';
 
 describe('Audio Synthesis', () => {
   describe('lightPercentageToFrequency', () => {
@@ -83,6 +90,161 @@ describe('Audio Synthesis', () => {
       // The difference should be positive (frequencies increase)
       expect(freq0to25).toBeGreaterThan(0);
       expect(freq75to100).toBeGreaterThan(0);
+    });
+  });
+});
+
+
+// Simula a Web Audio API para testar a lógica do apito sem navegador
+type FakeNode = { connect: (n: unknown) => void; disconnect: () => void };
+
+class FakeParam {
+  value = 0;
+  ramps: Array<{ value: number; time: number }> = [];
+  setValueAtTime(value: number) {
+    this.value = value;
+  }
+  cancelScheduledValues() {}
+  exponentialRampToValueAtTime(value: number, time: number) {
+    this.ramps.push({ value, time });
+  }
+}
+
+const created: { oscillators: any[]; gains: any[]; contexts: any[] } = {
+  oscillators: [],
+  gains: [],
+  contexts: [],
+};
+
+class FakeAudioContext {
+  state = 'running';
+  currentTime = 1;
+  destination = {};
+  closed = false;
+  constructor() {
+    created.contexts.push(this);
+  }
+  resume() {
+    return Promise.resolve();
+  }
+  close() {
+    this.closed = true;
+    return Promise.resolve();
+  }
+  createOscillator() {
+    const osc = {
+      type: 'sine',
+      frequency: new FakeParam(),
+      started: false,
+      stopped: false,
+      connect: () => {},
+      disconnect: () => {},
+      start() {
+        osc.started = true;
+      },
+      stop() {
+        osc.stopped = true;
+      },
+    } as FakeNode & Record<string, any>;
+    created.oscillators.push(osc);
+    return osc;
+  }
+  createGain() {
+    const gain = { gain: new FakeParam(), connect: () => {}, disconnect: () => {} };
+    created.gains.push(gain);
+    return gain;
+  }
+}
+
+describe('Audio Synthesis - apito', () => {
+  afterEach(() => {
+    cleanup();
+    delete (globalThis as any).AudioContext;
+    created.oscillators.length = 0;
+    created.gains.length = 0;
+    created.contexts.length = 0;
+  });
+
+  describe('sem Web Audio API (por exemplo, ambiente de testes)', () => {
+    it('should not throw when starting, updating and stopping', () => {
+      expect(() => startWhistle(440, 0.3)).not.toThrow();
+      expect(() => playLightDetectionWhistle(50)).not.toThrow();
+      expect(() => stopWhistle()).not.toThrow();
+      expect(() => cleanup()).not.toThrow();
+    });
+
+    it('should report not playing when no audio is available', () => {
+      startWhistle(440, 0.3);
+      expect(isAudioPlaying()).toBe(false);
+    });
+  });
+
+  describe('com Web Audio API', () => {
+    beforeEach(() => {
+      (globalThis as any).AudioContext = FakeAudioContext;
+    });
+
+    it('should start an oscillator at the requested frequency and volume', () => {
+      startWhistle(600, 0.25);
+      expect(isAudioPlaying()).toBe(true);
+      expect(created.oscillators).toHaveLength(1);
+      expect(created.oscillators[0].started).toBe(true);
+      expect(created.oscillators[0].frequency.value).toBe(600);
+      expect(created.gains[0].gain.value).toBe(0.25);
+    });
+
+    it('should stop the oscillator', () => {
+      startWhistle(600, 0.25);
+      stopWhistle();
+      expect(isAudioPlaying()).toBe(false);
+      expect(created.oscillators[0].stopped).toBe(true);
+    });
+
+    it('should start a whistle from the light level and then glide to new frequencies', () => {
+      playLightDetectionWhistle(0);
+      expect(created.oscillators).toHaveLength(1);
+      expect(created.oscillators[0].frequency.value).toBe(lightPercentageToFrequency(0));
+
+      playLightDetectionWhistle(100);
+      // Não cria outro oscilador: só desliza a frequência
+      expect(created.oscillators).toHaveLength(1);
+      const ramps = created.oscillators[0].frequency.ramps;
+      expect(ramps).toHaveLength(1);
+      expect(ramps[0].value).toBe(lightPercentageToFrequency(100));
+    });
+
+    it('should update the volume of the running whistle', () => {
+      playLightDetectionWhistle(10, 0.3);
+      playLightDetectionWhistle(20, 0.6);
+      expect(created.gains[0].gain.value).toBe(0.6);
+    });
+
+    it('should clamp the volume between 0 and 1', () => {
+      startWhistle(440, 5);
+      expect(created.gains[0].gain.value).toBe(1);
+      startWhistle(440, -2);
+      expect(created.gains[1].gain.value).toBe(0);
+    });
+
+    it('should close the audio context on cleanup and allow starting again', () => {
+      startWhistle(440, 0.3);
+      cleanup();
+      expect(created.contexts[0].closed).toBe(true);
+      expect(isAudioPlaying()).toBe(false);
+
+      startWhistle(880, 0.3);
+      expect(isAudioPlaying()).toBe(true);
+      expect(created.contexts).toHaveLength(2);
+    });
+
+    it('should not glide when nothing is playing', () => {
+      stopWhistle();
+      playLightDetectionWhistle(50);
+      stopWhistle();
+      playLightDetectionWhistle(70);
+      // Cada início cria um oscilador novo, sem rampas no oscilador parado
+      expect(created.oscillators).toHaveLength(2);
+      expect(created.oscillators[0].frequency.ramps).toHaveLength(0);
     });
   });
 });

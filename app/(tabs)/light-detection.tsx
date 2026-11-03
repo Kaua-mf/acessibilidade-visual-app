@@ -2,10 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
-import { LightSensor } from 'expo-sensors';
+import { captureSample } from '@/lib/frame-capture';
+import {
+  createLightSmoother,
+  estimateLight,
+  meanLinearLuminance,
+} from '@/lib/light-analysis';
 import {
   playLightDetectionWhistle,
   stopWhistle,
@@ -13,71 +19,91 @@ import {
   lightPercentageToFrequency,
 } from '@/lib/audio-synthesis';
 
+const LIGHT_UPDATE_INTERVAL_MS = 500;
+const WHISTLE_VOLUME = 0.3;
+// Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
+const MAX_CONSECUTIVE_FAILURES = 5;
+const CAMERA_UNAVAILABLE_TEXT = 'Câmera indisponível';
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 export default function LightDetectionScreen() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [lightLevel, setLightLevel] = useState<number>(0);
   const [lightPercentage, setLightPercentage] = useState<number>(0);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [hasReading, setHasReading] = useState<boolean>(false);
+  const [cameraReady, setCameraReady] = useState<boolean>(false);
+  const [cameraFailed, setCameraFailed] = useState<boolean>(false);
   const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
   const colors = useColors();
 
-  // Initialize whistle on component mount
+  // Libera o áudio ao sair da tela
   useEffect(() => {
-    // Start whistle when component mounts
-    if (permission?.granted) {
-      setIsWhistleActive(true);
-      playLightDetectionWhistle(lightPercentage, 0.3);
-    }
-
     return () => {
-      // Clean up whistle on unmount
       stopWhistle();
       cleanup();
     };
-  }, [permission?.granted]);
+  }, []);
 
-  // Update whistle frequency based on light changes
+  // Laço de leitura: mede a luz do que a câmera está vendo (Android, iOS e web).
+  // Uma leitura só começa depois que a anterior terminou (nunca se sobrepõem).
   useEffect(() => {
-    if (isWhistleActive) {
-      playLightDetectionWhistle(lightPercentage, 0.3);
-    }
-  }, [lightPercentage, isWhistleActive]);
+    if (!permission?.granted || !cameraReady) return;
 
-  // Subscribe to light sensor on Android
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      const subscribe = () => {
-        const sub = LightSensor.addListener((data: any) => {
-          // Light sensor returns illuminance in lux
-          // Normalize to 0-100 percentage (0-10000 lux range)
-          const percentage = Math.min(100, Math.round((data.illuminance / 10000) * 100));
-          setLightLevel(data.illuminance);
-          setLightPercentage(percentage);
-        });
-        setSubscription(sub);
-      };
+    let cancelled = false;
+    const smoother = createLightSmoother(0.5);
 
-      subscribe();
+    const run = async () => {
+      let failures = 0;
+      while (!cancelled) {
+        const startedAt = Date.now();
 
-      return () => {
-        if (subscription) {
-          subscription.remove();
+        try {
+          const camera = cameraRef.current;
+          if (!camera) throw new Error('A câmera ainda não está disponível.');
+
+          // O EXIF traz a exposição escolhida pela câmera, que mede a luz melhor
+          // do que o brilho dos pixels (a câmera compensa o brilho sozinha)
+          const sample = await captureSample(camera, { includeExif: true });
+          if (cancelled) return;
+
+          failures = 0;
+          const estimate = estimateLight(meanLinearLuminance(sample.data), sample.exif);
+          setLightPercentage(Math.round(smoother.smooth(estimate.percentage)));
+          setHasReading(true);
+          setCameraFailed(false);
+        } catch (error) {
+          if (cancelled) return;
+          failures++;
+          console.warn('Erro ao medir a luz:', error);
+          if (failures === MAX_CONSECUTIVE_FAILURES) {
+            setHasReading(false);
+            setCameraFailed(true);
+            Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
+          }
         }
-      };
-    } else {
-      // For iOS and Web, simulate light detection
-      const simulateLightDetection = () => {
-        const randomLight = Math.floor(Math.random() * 100);
-        setLightPercentage(randomLight);
-        setLightLevel(randomLight * 100);
-      };
 
-      const interval = setInterval(simulateLightDetection, 500);
-      return () => clearInterval(interval);
+        const elapsed = Date.now() - startedAt;
+        await sleep(Math.max(50, LIGHT_UPDATE_INTERVAL_MS - elapsed));
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [permission?.granted, cameraReady]);
+
+  // O apito só começa depois da primeira leitura real e acompanha a luz
+  useEffect(() => {
+    if (!permission?.granted || !hasReading || !isWhistleActive) {
+      stopWhistle();
+      return;
     }
-  }, [subscription]);
+    playLightDetectionWhistle(lightPercentage, WHISTLE_VOLUME);
+  }, [permission?.granted, hasReading, isWhistleActive, lightPercentage]);
 
   if (!permission) {
     return <View />;
@@ -133,7 +159,6 @@ export default function LightDetectionScreen() {
       setIsWhistleActive(false);
     } else {
       setIsWhistleActive(true);
-      playLightDetectionWhistle(lightPercentage, 0.3);
     }
   };
 
@@ -147,6 +172,7 @@ export default function LightDetectionScreen() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        onCameraReady={() => setCameraReady(true)}
       >
         {/* Overlay with light indicator */}
         <View style={styles.overlay}>
@@ -165,7 +191,9 @@ export default function LightDetectionScreen() {
 
           {/* Light level text display */}
           <View style={styles.lightDisplayContainer}>
-            <Text style={styles.lightLabel}>Intensidade de Luz</Text>
+            <Text style={styles.lightLabel}>
+              {cameraFailed ? CAMERA_UNAVAILABLE_TEXT : 'Intensidade de Luz'}
+            </Text>
             <Text style={styles.lightPercentage}>
               {lightPercentage}%
             </Text>

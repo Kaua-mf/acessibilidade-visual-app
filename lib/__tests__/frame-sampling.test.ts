@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SAMPLE_WIDTH,
   base64ToBytes,
+  bytesToBase64,
   regionRadiusFromSetting,
 } from '../frame-sampling';
 
@@ -36,6 +37,23 @@ describe('Frame Sampling', () => {
       for (let i = 0; i < 256; i++) original[i] = i;
       const encoded = Buffer.from(original).toString('base64');
       expect(Array.from(base64ToBytes(encoded))).toEqual(Array.from(original));
+    });
+  });
+
+  describe('bytesToBase64', () => {
+    it('should match Node Buffer for lengths 0 to 10', () => {
+      for (let length = 0; length <= 10; length++) {
+        const bytes = new Uint8Array(length);
+        for (let i = 0; i < length; i++) bytes[i] = (i * 37 + 11) & 255;
+        expect(bytesToBase64(bytes)).toBe(Buffer.from(bytes).toString('base64'));
+      }
+    });
+
+    it('should round trip with base64ToBytes', () => {
+      const original = new Uint8Array(1000);
+      for (let i = 0; i < original.length; i++) original[i] = (i * 131 + 7) & 255;
+      const roundTrip = base64ToBytes(bytesToBase64(original));
+      expect(Array.from(roundTrip)).toEqual(Array.from(original));
     });
   });
 

@@ -58,6 +58,23 @@ export function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+/** Converte bytes em base64 (inverso de base64ToBytes). */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let result = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+    const triple = (b0 << 16) | (b1 << 8) | b2;
+
+    result += BASE64_ALPHABET[(triple >> 18) & 63];
+    result += BASE64_ALPHABET[(triple >> 12) & 63];
+    result += i + 1 < bytes.length ? BASE64_ALPHABET[(triple >> 6) & 63] : '=';
+    result += i + 2 < bytes.length ? BASE64_ALPHABET[triple & 63] : '=';
+  }
+  return result;
+}
+
 /**
  * Converte o "tamanho da região" da calibração (5-50) no raio, em pixels,
  * da região média na amostra reduzida.
