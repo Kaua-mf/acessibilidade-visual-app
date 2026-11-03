@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< HEAD
 import { AccessibilityInfo, View, Text, Pressable, ScrollView, StyleSheet, Platform } from 'react-native';
+=======
+import { View, Text, Pressable, ScrollView, StyleSheet, Platform } from 'react-native';
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
+<<<<<<< HEAD
 import { optionLabel, presetLabel } from '@/lib/accessibility-labels';
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 import {
   CalibrationSettings,
   DEFAULT_SETTINGS,
@@ -118,7 +125,10 @@ export default function CalibrationScreen() {
     
     const preset = await applyPreset(presetName);
     setSettings(preset);
+<<<<<<< HEAD
     AccessibilityInfo.announceForAccessibility(`Preset ${presetLabel(presetName)} aplicado`);
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
   };
 
   const handleReset = async () => {
@@ -128,7 +138,10 @@ export default function CalibrationScreen() {
     
     await resetCalibrationSettings();
     setSettings(DEFAULT_SETTINGS);
+<<<<<<< HEAD
     AccessibilityInfo.announceForAccessibility('Ajustes restaurados para o padrão');
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
   };
 
   const handleBack = async () => {
@@ -152,9 +165,13 @@ export default function CalibrationScreen() {
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
+<<<<<<< HEAD
             <Text style={styles.title} accessibilityRole="header" accessibilityLabel="Calibração">
               ⚙️ Calibração
             </Text>
+=======
+            <Text style={styles.title}>⚙️ Calibração</Text>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             <Text style={styles.description}>
               {getCalibrationDescription(settings)}
             </Text>
@@ -162,19 +179,27 @@ export default function CalibrationScreen() {
 
           {/* Presets Section */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <Text style={styles.sectionTitle} accessibilityRole="header">Presets Rápidos</Text>
             <View
               style={styles.presetsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Presets rápidos"
             >
+=======
+            <Text style={styles.sectionTitle}>Presets Rápidos</Text>
+            <View style={styles.presetsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {Object.entries(CALIBRATION_PRESETS).map(([key, preset]) => (
                 <Pressable
                   key={key}
                   onPress={() => handlePresetPress(key as keyof typeof CALIBRATION_PRESETS)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={presetLabel(key)}
                   accessibilityState={{ checked: settings.preset === key, selected: settings.preset === key }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.presetButton,
                     settings.preset === key && styles.presetButtonActive,
@@ -196,6 +221,7 @@ export default function CalibrationScreen() {
 
           {/* Sensitivity Slider */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <View
               style={styles.sliderHeader}
               accessible
@@ -211,6 +237,13 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Sensibilidade de Cores</Text>
+              <Text style={styles.sliderValue}>{settings.colorSensitivity}%</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Tolerante</Text>
               <View style={styles.slider}>
                 <View
@@ -222,19 +255,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Rigoroso</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Sensibilidade de cores"
               accessibilityHint="De Tolerante a Rigoroso"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[0, 25, 50, 75, 100].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handleSensitivityChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Sensibilidade de cores', value, 'percent')}
                   accessibilityState={{ checked: settings.colorSensitivity === value, selected: settings.colorSensitivity === value }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     settings.colorSensitivity === value && styles.sliderButtonActive,
@@ -254,6 +294,7 @@ export default function CalibrationScreen() {
 
           {/* Min Confidence Slider */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <View
               style={styles.sliderHeader}
               accessible
@@ -269,6 +310,13 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Confiança Mínima</Text>
+              <Text style={styles.sliderValue}>{settings.minConfidence}%</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Baixa</Text>
               <View style={styles.slider}>
                 <View
@@ -280,19 +328,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Alta</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Confiança mínima"
               accessibilityHint="De Baixa a Alta"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[30, 50, 70, 85, 100].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handleMinConfidenceChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Confiança mínima', value, 'percent')}
                   accessibilityState={{ checked: settings.minConfidence === value, selected: settings.minConfidence === value }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     settings.minConfidence === value && styles.sliderButtonActive,
@@ -312,6 +367,7 @@ export default function CalibrationScreen() {
 
           {/* Region Size Slider */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <View
               style={styles.sliderHeader}
               accessible
@@ -327,6 +383,13 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Tamanho da Região</Text>
+              <Text style={styles.sliderValue}>{settings.regionSize}px</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Pequeno</Text>
               <View style={styles.slider}>
                 <View
@@ -338,19 +401,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Grande</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Tamanho da região"
               accessibilityHint="De Pequeno a Grande"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[10, 15, 20, 30, 40].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handleRegionSizeChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Tamanho da região', value, 'pixels')}
                   accessibilityState={{ checked: settings.regionSize === value, selected: settings.regionSize === value }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     settings.regionSize === value && styles.sliderButtonActive,
@@ -370,6 +440,7 @@ export default function CalibrationScreen() {
 
           {/* Update Frequency Slider */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <View
               style={styles.sliderHeader}
               accessible
@@ -385,6 +456,13 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Frequência de Atualização</Text>
+              <Text style={styles.sliderValue}>{settings.updateFrequency}ms</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Rápido</Text>
               <View style={styles.slider}>
                 <View
@@ -396,19 +474,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Lento</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Frequência de atualização"
               accessibilityHint="De Rápido a Lento"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[300, 500, 700, 900, 1000].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handleUpdateFrequencyChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Frequência de atualização', value, 'milliseconds')}
                   accessibilityState={{ checked: settings.updateFrequency === value, selected: settings.updateFrequency === value }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     settings.updateFrequency === value && styles.sliderButtonActive,
@@ -428,6 +513,7 @@ export default function CalibrationScreen() {
 
           {/* Speech Settings Section */}
           <View style={styles.section}>
+<<<<<<< HEAD
             <Text style={styles.sectionTitle} accessibilityRole="header" accessibilityLabel="Configurações de fala">
               🔊 Configurações de Fala
             </Text>
@@ -448,6 +534,16 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <Text style={styles.sectionTitle}>🔊 Configurações de Fala</Text>
+
+            {/* Speech Rate Slider */}
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Velocidade da Fala</Text>
+              <Text style={styles.sliderValue}>{getSpeechRateDescription(speechSettings.rate)}</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Lento</Text>
               <View style={styles.slider}>
                 <View
@@ -459,19 +555,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Rápido</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Velocidade da fala"
               accessibilityHint="De Lento a Rápido"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[0.6, 0.8, 0.9, 1.1, 1.3].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handleSpeechRateChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Velocidade da fala', value, 'multiplier')}
                   accessibilityState={{ checked: Math.abs(speechSettings.rate - value) < 0.05, selected: Math.abs(speechSettings.rate - value) < 0.05 }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     Math.abs(speechSettings.rate - value) < 0.05 && styles.sliderButtonActive,
@@ -489,6 +592,7 @@ export default function CalibrationScreen() {
             </View>
 
             {/* Pitch Slider */}
+<<<<<<< HEAD
             <View
               style={[styles.sliderHeader, { marginTop: 12 }]}
               accessible
@@ -504,6 +608,13 @@ export default function CalibrationScreen() {
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
+=======
+            <View style={[styles.sliderHeader, { marginTop: 12 }]}>
+              <Text style={styles.sliderLabel}>Tom da Voz</Text>
+              <Text style={styles.sliderValue}>{getPitchDescription(speechSettings.pitch)}</Text>
+            </View>
+            <View style={styles.sliderContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               <Text style={styles.sliderMin}>Grave</Text>
               <View style={styles.slider}>
                 <View
@@ -515,19 +626,26 @@ export default function CalibrationScreen() {
               </View>
               <Text style={styles.sliderMax}>Agudo</Text>
             </View>
+<<<<<<< HEAD
             <View
               style={styles.sliderButtonsContainer}
               accessibilityRole="radiogroup"
               accessibilityLabel="Tom da voz"
               accessibilityHint="De Grave a Agudo"
             >
+=======
+            <View style={styles.sliderButtonsContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               {[0.7, 0.85, 1.0, 1.15, 1.3].map((value) => (
                 <Pressable
                   key={value}
                   onPress={() => handlePitchChange(value)}
+<<<<<<< HEAD
                   accessibilityRole="radio"
                   accessibilityLabel={optionLabel('Tom da voz', value, 'none')}
                   accessibilityState={{ checked: Math.abs(speechSettings.pitch - value) < 0.05, selected: Math.abs(speechSettings.pitch - value) < 0.05 }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
                   style={({ pressed }) => [
                     styles.sliderButton,
                     Math.abs(speechSettings.pitch - value) < 0.05 && styles.sliderButtonActive,
@@ -547,9 +665,13 @@ export default function CalibrationScreen() {
 
           {/* Info Box */}
           <View style={styles.infoBox}>
+<<<<<<< HEAD
             <Text style={styles.infoTitle} accessibilityRole="header" accessibilityLabel="Dicas de calibração">
               💡 Dicas de Calibração
             </Text>
+=======
+            <Text style={styles.infoTitle}>💡 Dicas de Calibração</Text>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             <Text style={styles.infoText}>
               • Aumentar sensibilidade em ambientes com iluminação variável{'\n'}
               • Diminuir sensibilidade em ambientes com cores vibrantes{'\n'}
@@ -562,9 +684,12 @@ export default function CalibrationScreen() {
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={handleReset}
+<<<<<<< HEAD
               accessibilityRole="button"
               accessibilityLabel="Restaurar padrão"
               accessibilityHint="Volta todos os ajustes de calibração para os valores originais"
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               style={({ pressed }) => [
                 styles.resetButton,
                 pressed && { opacity: 0.8 },
@@ -575,9 +700,12 @@ export default function CalibrationScreen() {
 
             <Pressable
               onPress={handleBack}
+<<<<<<< HEAD
               accessibilityRole="button"
               accessibilityLabel="Voltar"
               accessibilityHint="Volta para a tela anterior"
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               style={({ pressed }) => [
                 styles.backButton,
                 pressed && { opacity: 0.8 },

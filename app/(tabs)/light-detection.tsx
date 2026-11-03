@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+<<<<<<< HEAD
 import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +15,15 @@ import {
   estimateLight,
   meanLinearLuminance,
 } from '@/lib/light-analysis';
+=======
+import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { ScreenContainer } from '@/components/screen-container';
+import { useColors } from '@/hooks/use-colors';
+import { LightSensor } from 'expo-sensors';
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 import {
   playLightDetectionWhistle,
   stopWhistle,
@@ -21,6 +31,7 @@ import {
   lightPercentageToFrequency,
 } from '@/lib/audio-synthesis';
 
+<<<<<<< HEAD
 const LIGHT_UPDATE_INTERVAL_MS = 500;
 const WHISTLE_VOLUME = 0.3;
 // Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
@@ -118,6 +129,73 @@ export default function LightDetectionScreen() {
     }
     playLightDetectionWhistle(lightPercentage, WHISTLE_VOLUME);
   }, [permission?.granted, hasReading, isWhistleActive, lightPercentage]);
+=======
+export default function LightDetectionScreen() {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [lightLevel, setLightLevel] = useState<number>(0);
+  const [lightPercentage, setLightPercentage] = useState<number>(0);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
+  const cameraRef = useRef<CameraView>(null);
+  const router = useRouter();
+  const colors = useColors();
+
+  // Initialize whistle on component mount
+  useEffect(() => {
+    // Start whistle when component mounts
+    if (permission?.granted) {
+      setIsWhistleActive(true);
+      playLightDetectionWhistle(lightPercentage, 0.3);
+    }
+
+    return () => {
+      // Clean up whistle on unmount
+      stopWhistle();
+      cleanup();
+    };
+  }, [permission?.granted]);
+
+  // Update whistle frequency based on light changes
+  useEffect(() => {
+    if (isWhistleActive) {
+      playLightDetectionWhistle(lightPercentage, 0.3);
+    }
+  }, [lightPercentage, isWhistleActive]);
+
+  // Subscribe to light sensor on Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const subscribe = () => {
+        const sub = LightSensor.addListener((data: any) => {
+          // Light sensor returns illuminance in lux
+          // Normalize to 0-100 percentage (0-10000 lux range)
+          const percentage = Math.min(100, Math.round((data.illuminance / 10000) * 100));
+          setLightLevel(data.illuminance);
+          setLightPercentage(percentage);
+        });
+        setSubscription(sub);
+      };
+
+      subscribe();
+
+      return () => {
+        if (subscription) {
+          subscription.remove();
+        }
+      };
+    } else {
+      // For iOS and Web, simulate light detection
+      const simulateLightDetection = () => {
+        const randomLight = Math.floor(Math.random() * 100);
+        setLightPercentage(randomLight);
+        setLightLevel(randomLight * 100);
+      };
+
+      const interval = setInterval(simulateLightDetection, 500);
+      return () => clearInterval(interval);
+    }
+  }, [subscription]);
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 
   if (!permission) {
     return <View />;
@@ -126,10 +204,14 @@ export default function LightDetectionScreen() {
   if (!permission.granted) {
     return (
       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
+<<<<<<< HEAD
         <Text
           accessibilityRole="header"
           className="text-2xl font-bold text-foreground text-center mb-4"
         >
+=======
+        <Text className="text-2xl font-bold text-foreground text-center mb-4">
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
           Permissão de Câmera Necessária
         </Text>
         <Text className="text-lg text-foreground text-center mb-6">
@@ -146,9 +228,12 @@ export default function LightDetectionScreen() {
             pressed && { opacity: 0.8 },
           ]}
           className="bg-primary px-8 py-4 rounded-full"
+<<<<<<< HEAD
           accessibilityRole="button"
           accessibilityLabel="Permitir acesso à câmera"
           accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
         >
           <Text className="text-lg font-bold text-black text-center">
             Permitir Câmera
@@ -179,6 +264,10 @@ export default function LightDetectionScreen() {
       setIsWhistleActive(false);
     } else {
       setIsWhistleActive(true);
+<<<<<<< HEAD
+=======
+      playLightDetectionWhistle(lightPercentage, 0.3);
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
     }
   };
 
@@ -192,18 +281,25 @@ export default function LightDetectionScreen() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+<<<<<<< HEAD
         importantForAccessibility="no"
         onCameraReady={() => setCameraReady(true)}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
       >
         {/* Overlay with light indicator */}
         <View style={styles.overlay}>
           {/* Light indicator (circle that grows with light) */}
+<<<<<<< HEAD
           <View
             style={styles.indicatorContainer}
             accessible={false}
             importantForAccessibility="no-hide-descendants"
             accessibilityElementsHidden
           >
+=======
+          <View style={styles.indicatorContainer}>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             <View
               style={[
                 styles.lightIndicator,
@@ -216,6 +312,7 @@ export default function LightDetectionScreen() {
           </View>
 
           {/* Light level text display */}
+<<<<<<< HEAD
           <View
             style={styles.lightDisplayContainer}
             accessible
@@ -225,6 +322,10 @@ export default function LightDetectionScreen() {
             <Text style={styles.lightLabel}>
               {cameraFailed ? CAMERA_UNAVAILABLE_TEXT : 'Intensidade de Luz'}
             </Text>
+=======
+          <View style={styles.lightDisplayContainer}>
+            <Text style={styles.lightLabel}>Intensidade de Luz</Text>
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             <Text style={styles.lightPercentage}>
               {lightPercentage}%
             </Text>
@@ -238,10 +339,13 @@ export default function LightDetectionScreen() {
             {/* Toggle whistle button */}
             <Pressable
               onPress={toggleWhistle}
+<<<<<<< HEAD
               accessibilityRole="switch"
               accessibilityLabel="Apito de luz"
               accessibilityHint="Liga ou desliga o som que muda conforme a luz"
               accessibilityState={{ checked: isWhistleActive }}
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               style={({ pressed }) => [
                 styles.toggleButton,
                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -256,9 +360,12 @@ export default function LightDetectionScreen() {
             {/* Back button */}
             <Pressable
               onPress={handleNavigateToColors}
+<<<<<<< HEAD
               accessibilityRole="button"
               accessibilityLabel="Voltar"
               accessibilityHint="Volta para a tela anterior"
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
               style={({ pressed }) => [
                 styles.backButton,
                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },

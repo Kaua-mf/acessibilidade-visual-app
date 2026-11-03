@@ -82,8 +82,12 @@ const COLOR_DATABASE: Array<{
   // Grays
   { name: 'Cinza', hex: '#808080', rgb: { r: 128, g: 128, b: 128 } },
   { name: 'Cinza Claro', hex: '#D3D3D3', rgb: { r: 211, g: 211, b: 211 } },
+<<<<<<< HEAD
   // Antes era #A9A9A9 (mais claro que o "Cinza" #808080, pegadinha do CSS)
   { name: 'Cinza Escuro', hex: '#595959', rgb: { r: 89, g: 89, b: 89 } },
+=======
+  { name: 'Cinza Escuro', hex: '#A9A9A9', rgb: { r: 169, g: 169, b: 169 } },
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
   { name: 'Preto', hex: '#000000', rgb: { r: 0, g: 0, b: 0 } },
   { name: 'Branco', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 } },
 ];
@@ -239,7 +243,10 @@ function averagePixelsInRegion(
  * @param height - Image height
  * @param centerX - X coordinate of center point (default: center of image)
  * @param centerY - Y coordinate of center point (default: center of image)
+<<<<<<< HEAD
  * @param regionRadius - Half-size of the averaged square, in pixels (default: 15)
+=======
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
  * @returns Color data with name, hex, RGB, HSL, and confidence
  */
 export function detectColorFromImageData(
@@ -247,15 +254,23 @@ export function detectColorFromImageData(
   width: number,
   height: number,
   centerX?: number,
+<<<<<<< HEAD
   centerY?: number,
   regionRadius: number = 15
+=======
+  centerY?: number
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 ): ColorData {
   // Use image center if coordinates not provided
   const x = centerX ?? Math.floor(width / 2);
   const y = centerY ?? Math.floor(height / 2);
 
   // Average pixels in a region for more stable detection
+<<<<<<< HEAD
   const avgPixel = averagePixelsInRegion(imageData, x, y, width, height, Math.max(1, regionRadius));
+=======
+  const avgPixel = averagePixelsInRegion(imageData, x, y, width, height, 15);
+>>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 
   // Find closest color name
   const closest = findClosestColor(avgPixel);
