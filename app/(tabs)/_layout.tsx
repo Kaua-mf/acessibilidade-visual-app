@@ -38,6 +38,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
+          tabBarAccessibilityLabel: "Início",
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
@@ -45,6 +46,7 @@ export default function TabLayout() {
         name="color-detection"
         options={{
           title: "Cores",
+          tabBarAccessibilityLabel: "Identificação de cores",
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paintbrush.fill" color={color} />,
         }}
       />
@@ -52,6 +54,7 @@ export default function TabLayout() {
         name="light-detection"
         options={{
           title: "Luz",
+          tabBarAccessibilityLabel: "Detecção de luz",
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="lightbulb.fill" color={color} />,
         }}
       />
@@ -59,6 +62,7 @@ export default function TabLayout() {
         name="calibration"
         options={{
           title: "Calibração",
+          tabBarAccessibilityLabel: "Calibração",
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />

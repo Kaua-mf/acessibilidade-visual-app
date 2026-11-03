@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
+import { lightReadingLabel } from '@/lib/accessibility-labels';
+import { useScreenReaderEnabled } from '@/lib/use-screen-reader';
 import { captureSample } from '@/lib/frame-capture';
 import {
   createLightSmoother,
@@ -35,8 +37,15 @@ export default function LightDetectionScreen() {
   const [cameraFailed, setCameraFailed] = useState<boolean>(false);
   const [isWhistleActive, setIsWhistleActive] = useState<boolean>(true);
   const cameraRef = useRef<CameraView>(null);
+  const screenReaderEnabled = useScreenReaderEnabled();
+  // Em ref: o laço de leitura sempre usa o valor mais recente, sem precisar reiniciar
+  const screenReaderRef = useRef<boolean>(false);
   const router = useRouter();
   const colors = useColors();
+
+  useEffect(() => {
+    screenReaderRef.current = screenReaderEnabled;
+  }, [screenReaderEnabled]);
 
   // Libera o áudio ao sair da tela
   useEffect(() => {
@@ -80,7 +89,12 @@ export default function LightDetectionScreen() {
           if (failures === MAX_CONSECUTIVE_FAILURES) {
             setHasReading(false);
             setCameraFailed(true);
-            Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
+            // Com leitor de tela ligado, usa a voz dele (evita duas vozes ao mesmo tempo)
+            if (screenReaderRef.current) {
+              AccessibilityInfo.announceForAccessibility(CAMERA_UNAVAILABLE_TEXT);
+            } else {
+              Speech.speak(CAMERA_UNAVAILABLE_TEXT, { language: 'pt-BR' });
+            }
           }
         }
 
@@ -112,7 +126,10 @@ export default function LightDetectionScreen() {
   if (!permission.granted) {
     return (
       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
-        <Text className="text-2xl font-bold text-foreground text-center mb-4">
+        <Text
+          accessibilityRole="header"
+          className="text-2xl font-bold text-foreground text-center mb-4"
+        >
           Permissão de Câmera Necessária
         </Text>
         <Text className="text-lg text-foreground text-center mb-6">
@@ -129,6 +146,9 @@ export default function LightDetectionScreen() {
             pressed && { opacity: 0.8 },
           ]}
           className="bg-primary px-8 py-4 rounded-full"
+          accessibilityRole="button"
+          accessibilityLabel="Permitir acesso à câmera"
+          accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
         >
           <Text className="text-lg font-bold text-black text-center">
             Permitir Câmera
@@ -172,12 +192,18 @@ export default function LightDetectionScreen() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        importantForAccessibility="no"
         onCameraReady={() => setCameraReady(true)}
       >
         {/* Overlay with light indicator */}
         <View style={styles.overlay}>
           {/* Light indicator (circle that grows with light) */}
-          <View style={styles.indicatorContainer}>
+          <View
+            style={styles.indicatorContainer}
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden
+          >
             <View
               style={[
                 styles.lightIndicator,
@@ -190,7 +216,12 @@ export default function LightDetectionScreen() {
           </View>
 
           {/* Light level text display */}
-          <View style={styles.lightDisplayContainer}>
+          <View
+            style={styles.lightDisplayContainer}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={lightReadingLabel(lightPercentage, cameraFailed)}
+          >
             <Text style={styles.lightLabel}>
               {cameraFailed ? CAMERA_UNAVAILABLE_TEXT : 'Intensidade de Luz'}
             </Text>
@@ -207,6 +238,10 @@ export default function LightDetectionScreen() {
             {/* Toggle whistle button */}
             <Pressable
               onPress={toggleWhistle}
+              accessibilityRole="switch"
+              accessibilityLabel="Apito de luz"
+              accessibilityHint="Liga ou desliga o som que muda conforme a luz"
+              accessibilityState={{ checked: isWhistleActive }}
               style={({ pressed }) => [
                 styles.toggleButton,
                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -221,6 +256,9 @@ export default function LightDetectionScreen() {
             {/* Back button */}
             <Pressable
               onPress={handleNavigateToColors}
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+              accessibilityHint="Volta para a tela anterior"
               style={({ pressed }) => [
                 styles.backButton,
                 pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },

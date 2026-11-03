@@ -1,11 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
+import {
+  CAMERA_UNAVAILABLE_NAME,
+  INITIALIZING_COLOR_NAME,
+  colorReadingLabel,
+} from '@/lib/accessibility-labels';
+import { useScreenReaderEnabled } from '@/lib/use-screen-reader';
 import { detectColorFromImageData } from '@/lib/color-detection';
 import {
   createColorStabilizer,
@@ -35,14 +41,13 @@ interface DetectedColorData {
 
 // Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
 const MAX_CONSECUTIVE_FAILURES = 5;
-const CAMERA_UNAVAILABLE_NAME = 'Câmera indisponível';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export default function ColorDetectionScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [detectedColor, setDetectedColor] = useState<DetectedColorData>({
-    name: 'Inicializando...',
+    name: INITIALIZING_COLOR_NAME,
     hex: '#808080',
     rgb: { r: 128, g: 128, b: 128 },
     confidence: 0,
@@ -52,8 +57,15 @@ export default function ColorDetectionScreen() {
   // Configurações em refs: o laço de leitura sempre usa o valor mais recente
   const speechSettingsRef = useRef<SpeechSettings>(DEFAULT_SPEECH_SETTINGS);
   const calibrationRef = useRef<CalibrationSettings>(DEFAULT_SETTINGS);
+  const screenReaderEnabled = useScreenReaderEnabled();
+  // Em ref: o laço de leitura sempre usa o valor mais recente, sem precisar reiniciar
+  const screenReaderRef = useRef<boolean>(false);
   const router = useRouter();
   const colors = useColors();
+
+  useEffect(() => {
+    screenReaderRef.current = screenReaderEnabled;
+  }, [screenReaderEnabled]);
 
   // Carrega as configurações de fala e de calibração
   useEffect(() => {
@@ -89,6 +101,12 @@ export default function ColorDetectionScreen() {
     const announce = (text: string) => {
       const speech = speechSettingsRef.current;
       if (!speech.enabled) return;
+      // Com leitor de tela ligado (TalkBack/VoiceOver), usa a voz dele: evita duas vozes
+      // falando ao mesmo tempo e respeita a velocidade que a pessoa já ajustou no aparelho.
+      if (screenReaderRef.current) {
+        AccessibilityInfo.announceForAccessibility(text);
+        return;
+      }
       // Interrompe a fala anterior para a cor nova não ficar para trás
       Speech.stop();
       Speech.speak(text, {
@@ -179,7 +197,10 @@ export default function ColorDetectionScreen() {
   if (!permission.granted) {
     return (
       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
-        <Text className="text-2xl font-bold text-foreground text-center mb-4">
+        <Text
+          accessibilityRole="header"
+          className="text-2xl font-bold text-foreground text-center mb-4"
+        >
           Permissão de Câmera Necessária
         </Text>
         <Text className="text-lg text-foreground text-center mb-6">
@@ -196,6 +217,9 @@ export default function ColorDetectionScreen() {
             pressed && { opacity: 0.8 },
           ]}
           className="bg-primary px-8 py-4 rounded-full"
+          accessibilityRole="button"
+          accessibilityLabel="Permitir acesso à câmera"
+          accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
         >
           <Text className="text-lg font-bold text-black text-center">
             Permitir Câmera
@@ -231,6 +255,7 @@ export default function ColorDetectionScreen() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        importantForAccessibility="no"
         onCameraReady={() => setCameraReady(true)}
       >
         {/* Overlay with reading frame and color display */}
@@ -238,6 +263,9 @@ export default function ColorDetectionScreen() {
           {/* Back button - Top left */}
           <Pressable
             onPress={handleGoBack}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar"
+            accessibilityHint="Volta para a tela anterior"
             style={({ pressed }) => [
               styles.backButton,
               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -247,13 +275,23 @@ export default function ColorDetectionScreen() {
           </Pressable>
 
           {/* Reading frame (center) */}
-          <View style={styles.readingFrame}>
+          <View
+            style={styles.readingFrame}
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden
+          >
             {/* Color preview circle inside frame */}
             <View style={[styles.colorPreview, colorPreviewStyle]} />
           </View>
 
           {/* Color name and confidence display */}
-          <View style={styles.colorDisplayContainer}>
+          <View
+            style={styles.colorDisplayContainer}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={colorReadingLabel(detectedColor.name, detectedColor.confidence)}
+          >
             <Text style={styles.colorName}>
               {detectedColor.name}
             </Text>
@@ -268,6 +306,9 @@ export default function ColorDetectionScreen() {
           {/* Light Mode button */}
           <Pressable
             onPress={handleNavigateToLightMode}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir detecção de luz"
+            accessibilityHint="Muda para o modo que mede a luz com um apito"
             style={({ pressed }) => [
               styles.modeButton,
               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
