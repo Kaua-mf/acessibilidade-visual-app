@@ -40,6 +40,14 @@ const env = {
   description: "Aplicativo móvel para acessibilidade visual com detecção de cores e luz",
 };
 
+// Textos que o iOS mostra ao pedir permissão. Precisam dizer, com clareza, para
+// que o app usa o recurso (exigência da App Store).
+const cameraPermissionText =
+  "O $(PRODUCT_NAME) usa a câmera para identificar a cor do objeto à sua frente e medir a luz do ambiente. As imagens são processadas no aparelho e não são salvas nem enviadas.";
+// O app nunca grava áudio: só toca o apito e a voz. Esse texto não deve aparecer
+// para o usuário, mas o plugin da câmera pode deixar a chave no Info.plist.
+const microphonePermissionText = "O $(PRODUCT_NAME) não grava áudio.";
+
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
@@ -52,9 +60,13 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      // O app é só em português: faz os botões do aviso de permissão do sistema
+      // (Permitir / Não permitir) aparecerem em português também
+      CFBundleDevelopmentRegion: "pt-BR",
+      CFBundleLocalizations: ["pt-BR"],
+    },
   },
   android: {
     adaptiveIcon: {
@@ -66,7 +78,14 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
+    // O app só precisa de câmera (adicionada pelo expo-camera) e vibração
+    // (adicionada pelo expo-haptics). Estas duas vêm de bibliotecas, mas o app
+    // não grava áudio nem envia notificações, então são removidas do manifesto.
+    // blockedPermissions é a única forma de tirar permissões de bibliotecas.
+    blockedPermissions: [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.POST_NOTIFICATIONS",
+    ],
     intentFilters: [
       {
         action: "VIEW",
@@ -89,16 +108,25 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
-      "expo-audio",
+      "expo-camera",
       {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
+        cameraPermission: cameraPermissionText,
+        microphonePermission: microphonePermissionText,
+        recordAudioAndroid: false,
+        // O app não lê códigos de barras
+        barcodeScannerEnabled: false,
       },
     ],
     [
-      "expo-video",
+      // Só toca o apito enquanto a tela de luz está aberta: sem gravação e sem
+      // reprodução em segundo plano (que adicionaria serviço em primeiro plano
+      // no Android e o modo de áudio em segundo plano no iOS)
+      "expo-audio",
       {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
+        microphonePermission: false,
+        recordAudioAndroid: false,
+        enableBackgroundPlayback: false,
+        enableBackgroundRecording: false,
       },
     ],
     [
