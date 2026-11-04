@@ -1,16 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-<<<<<<< HEAD
 import { AccessibilityInfo, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
-=======
-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
-<<<<<<< HEAD
 import {
   CAMERA_UNAVAILABLE_NAME,
   INITIALIZING_COLOR_NAME,
@@ -36,10 +31,6 @@ import {
   loadSpeechSettings,
   type SpeechSettings,
 } from '@/lib/speech-settings';
-=======
-import { detectColorFromImageData } from '@/lib/color-detection';
-import { loadSpeechSettings, type SpeechSettings } from '@/lib/speech-settings';
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 
 interface DetectedColorData {
   name: string;
@@ -48,7 +39,6 @@ interface DetectedColorData {
   confidence: number;
 }
 
-<<<<<<< HEAD
 // Depois de tantas falhas seguidas, avisa que a câmera não está funcionando
 const MAX_CONSECUTIVE_FAILURES = 5;
 
@@ -58,17 +48,10 @@ export default function ColorDetectionScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [detectedColor, setDetectedColor] = useState<DetectedColorData>({
     name: INITIALIZING_COLOR_NAME,
-=======
-export default function ColorDetectionScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [detectedColor, setDetectedColor] = useState<DetectedColorData>({
-    name: 'Inicializando...',
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
     hex: '#808080',
     rgb: { r: 128, g: 128, b: 128 },
     confidence: 0,
   });
-<<<<<<< HEAD
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const cameraRef = useRef<CameraView>(null);
   // Configurações em refs: o laço de leitura sempre usa o valor mais recente
@@ -206,127 +189,6 @@ export default function ColorDetectionScreen() {
       Speech.stop();
     };
   }, [permission?.granted, cameraReady]);
-=======
-  const [lastSpokenColor, setLastSpokenColor] = useState<string>('');
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [speechSettings, setSpeechSettings] = useState<SpeechSettings>({
-    rate: 0.9,
-    pitch: 1.0,
-    volume: 1.0,
-    enabled: true,
-  });
-  const cameraRef = useRef<CameraView>(null);
-  const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const router = useRouter();
-  const colors = useColors();
-
-  // Load speech settings on component mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      const settings = await loadSpeechSettings();
-      setSpeechSettings(settings);
-    };
-    loadSettings();
-  }, []);
-
-  // Announce color change with speech using loaded settings
-  useEffect(() => {
-    if (detectedColor.name !== lastSpokenColor && detectedColor.name !== 'Inicializando...') {
-      setLastSpokenColor(detectedColor.name);
-
-      // Only speak if speech is enabled
-      if (speechSettings.enabled) {
-        // Check if speech is already in progress
-        Speech.isSpeakingAsync().then((isSpeaking: boolean) => {
-          if (!isSpeaking) {
-            Speech.speak(detectedColor.name, {
-              language: 'pt-BR',
-              pitch: speechSettings.pitch,
-              rate: speechSettings.rate,
-              volume: speechSettings.volume,
-            });
-          }
-        });
-      }
-    }
-  }, [detectedColor, lastSpokenColor, speechSettings]);
-
-
-
-  // Start color detection when camera is ready
-  useEffect(() => {
-    if (permission?.granted && cameraRef.current) {
-      // Start processing frames
-      const startProcessing = async () => {
-        setIsProcessing(true);
-        
-        // Process frames every 500ms
-        processingIntervalRef.current = setInterval(async () => {
-          try {
-            // Take a photo to analyze
-            const photo = await cameraRef.current?.takePictureAsync({
-              quality: 0.5,
-              base64: true,
-              skipProcessing: false,
-            });
-
-            if (photo?.base64) {
-              // Convert base64 to image data
-              const binaryString = atob(photo.base64);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-              }
-
-              // For web/simulation: create a simple color detection
-              // In real implementation, would use proper image processing
-              if (Platform.OS === 'web') {
-                // Simulate color detection on web
-                const simulatedColors = [
-                  { name: 'Vermelho', hex: '#FF0000', rgb: { r: 255, g: 0, b: 0 }, confidence: 85 },
-                  { name: 'Verde', hex: '#00CC00', rgb: { r: 0, g: 204, b: 0 }, confidence: 82 },
-                  { name: 'Azul', hex: '#0066FF', rgb: { r: 0, g: 102, b: 255 }, confidence: 88 },
-                  { name: 'Amarelo', hex: '#FFFF00', rgb: { r: 255, g: 255, b: 0 }, confidence: 90 },
-                  { name: 'Branco', hex: '#FFFFFF', rgb: { r: 255, g: 255, b: 255 }, confidence: 92 },
-                  { name: 'Preto', hex: '#000000', rgb: { r: 0, g: 0, b: 0 }, confidence: 89 },
-                  { name: 'Laranja', hex: '#FFA500', rgb: { r: 255, g: 165, b: 0 }, confidence: 86 },
-                  { name: 'Roxo', hex: '#800080', rgb: { r: 128, g: 0, b: 128 }, confidence: 84 },
-                ];
-                
-                const randomColor = simulatedColors[Math.floor(Math.random() * simulatedColors.length)];
-                setDetectedColor(randomColor);
-              } else {
-                // On native platforms, use the actual image processing
-                // This would require proper image data extraction from the photo
-                // For now, we'll use a simulated approach
-                const simulatedColors = [
-                  { name: 'Vermelho', hex: '#FF0000', rgb: { r: 255, g: 0, b: 0 }, confidence: 85 },
-                  { name: 'Verde', hex: '#00CC00', rgb: { r: 0, g: 204, b: 0 }, confidence: 82 },
-                  { name: 'Azul', hex: '#0066FF', rgb: { r: 0, g: 102, b: 255 }, confidence: 88 },
-                  { name: 'Amarelo', hex: '#FFFF00', rgb: { r: 255, g: 255, b: 0 }, confidence: 90 },
-                ];
-                
-                const randomColor = simulatedColors[Math.floor(Math.random() * simulatedColors.length)];
-                setDetectedColor(randomColor);
-              }
-            }
-          } catch (error) {
-            console.error('Error processing frame:', error);
-          }
-        }, 500);
-      };
-
-      startProcessing();
-
-      return () => {
-        if (processingIntervalRef.current) {
-          clearInterval(processingIntervalRef.current);
-        }
-        setIsProcessing(false);
-      };
-    }
-  }, [permission?.granted]);
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 
   if (!permission) {
     return <View />;
@@ -335,14 +197,10 @@ export default function ColorDetectionScreen() {
   if (!permission.granted) {
     return (
       <ScreenContainer className="flex-1 items-center justify-center p-6 bg-background">
-<<<<<<< HEAD
         <Text
           accessibilityRole="header"
           className="text-2xl font-bold text-foreground text-center mb-4"
         >
-=======
-        <Text className="text-2xl font-bold text-foreground text-center mb-4">
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
           Permissão de Câmera Necessária
         </Text>
         <Text className="text-lg text-foreground text-center mb-6">
@@ -359,12 +217,9 @@ export default function ColorDetectionScreen() {
             pressed && { opacity: 0.8 },
           ]}
           className="bg-primary px-8 py-4 rounded-full"
-<<<<<<< HEAD
           accessibilityRole="button"
           accessibilityLabel="Permitir acesso à câmera"
           accessibilityHint="Abre a janela do sistema para autorizar o uso da câmera"
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
         >
           <Text className="text-lg font-bold text-black text-center">
             Permitir Câmera
@@ -400,23 +255,17 @@ export default function ColorDetectionScreen() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
-<<<<<<< HEAD
         importantForAccessibility="no"
         onCameraReady={() => setCameraReady(true)}
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
       >
         {/* Overlay with reading frame and color display */}
         <View style={styles.overlay}>
           {/* Back button - Top left */}
           <Pressable
             onPress={handleGoBack}
-<<<<<<< HEAD
             accessibilityRole="button"
             accessibilityLabel="Voltar"
             accessibilityHint="Volta para a tela anterior"
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             style={({ pressed }) => [
               styles.backButton,
               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -426,31 +275,23 @@ export default function ColorDetectionScreen() {
           </Pressable>
 
           {/* Reading frame (center) */}
-<<<<<<< HEAD
           <View
             style={styles.readingFrame}
             accessible={false}
             importantForAccessibility="no-hide-descendants"
             accessibilityElementsHidden
           >
-=======
-          <View style={styles.readingFrame}>
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             {/* Color preview circle inside frame */}
             <View style={[styles.colorPreview, colorPreviewStyle]} />
           </View>
 
           {/* Color name and confidence display */}
-<<<<<<< HEAD
           <View
             style={styles.colorDisplayContainer}
             accessible
             accessibilityRole="text"
             accessibilityLabel={colorReadingLabel(detectedColor.name, detectedColor.confidence)}
           >
-=======
-          <View style={styles.colorDisplayContainer}>
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             <Text style={styles.colorName}>
               {detectedColor.name}
             </Text>
@@ -465,12 +306,9 @@ export default function ColorDetectionScreen() {
           {/* Light Mode button */}
           <Pressable
             onPress={handleNavigateToLightMode}
-<<<<<<< HEAD
             accessibilityRole="button"
             accessibilityLabel="Abrir detecção de luz"
             accessibilityHint="Muda para o modo que mede a luz com um apito"
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             style={({ pressed }) => [
               styles.modeButton,
               pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 },

@@ -32,12 +32,9 @@ export default function HomeScreen() {
           {/* Color Detection Card */}
           <Pressable
             onPress={handleColorDetectionPress}
-<<<<<<< HEAD
             accessibilityRole="button"
             accessibilityLabel="Identificação de cores. Detecte e identifique cores em tempo real."
             accessibilityHint="Abre a câmera para identificar cores"
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             style={({ pressed }) => [
               styles.featureCard,
               pressed && styles.featureCardPressed,
@@ -57,12 +54,9 @@ export default function HomeScreen() {
           {/* Light Detection Card */}
           <Pressable
             onPress={handleLightDetectionPress}
-<<<<<<< HEAD
             accessibilityRole="button"
             accessibilityLabel="Detecção de luz. Ouça um apito que muda conforme a intensidade de luz."
             accessibilityHint="Abre a câmera para medir a luz"
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
             style={({ pressed }) => [
               styles.featureCard,
               pressed && styles.featureCardPressed,

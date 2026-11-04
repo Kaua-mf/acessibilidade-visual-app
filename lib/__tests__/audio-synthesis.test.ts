@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-<<<<<<< HEAD
 import {
   cleanup,
   isAudioPlaying,
@@ -8,9 +7,6 @@ import {
   startWhistle,
   stopWhistle,
 } from '../audio-synthesis';
-=======
-import { lightPercentageToFrequency } from '../audio-synthesis';
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
 
 describe('Audio Synthesis', () => {
   describe('lightPercentageToFrequency', () => {
@@ -97,7 +93,6 @@ describe('Audio Synthesis', () => {
     });
   });
 });
-<<<<<<< HEAD
 
 
 // Simula a Web Audio API para testar a lógica do apito sem navegador
@@ -253,5 +248,3 @@ describe('Audio Synthesis - apito', () => {
     });
   });
 });
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77

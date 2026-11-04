@@ -267,7 +267,6 @@ describe('Color Detection', () => {
     });
   });
 });
-<<<<<<< HEAD
 
 describe('Color Detection - amostra reduzida e região', () => {
   function imageWithCenter(
@@ -327,5 +326,3 @@ describe('Color Detection - amostra reduzida e região', () => {
     expect(implicit).toEqual(explicit);
   });
 });
-=======
->>>>>>> f3a1d43427e9ed208e3ebf0794154b3a7b6dbf77
